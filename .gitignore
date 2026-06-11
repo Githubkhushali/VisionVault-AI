@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Environment variables (keep .env.example files)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python virtual environment
+.venv/
+venv/
+env/
+myenv/
+.env/
+env*/
+*env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Package manager lock files (keep package-lock.json)
+yarn.lock
+
+# Large binary / media files
+*.mov
+*.MOV
+*.mp4
+*.avi
+*.mkv
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# Temp uploads
+ai-service/temp_uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Misc
+*.pem
+.cache/
+database.sqlite

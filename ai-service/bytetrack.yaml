@@ -1,0 +1,30 @@
+# Custom ByteTrack configuration for VisionVault
+# Tuned to minimize overcounting / ghost tracks
+
+tracker_type: bytetrack
+
+# How many frames to keep a lost track alive before retiring its ID.
+# We keep the default (30) — a large buffer was causing zombie IDs:
+# when someone re-enters after being "kept alive" for too long,
+# ByteTrack fails to match them (position drifted too much) and spawns a NEW id,
+# resulting in both the old zombie ID and the new ID being counted.
+track_buffer: 30
+
+# Association similarity threshold (IoU/cost). Higher = stricter matching.
+# This prevents two different people from being merged into one track.
+match_thresh: 0.8
+
+# High-confidence detections used for primary matching.
+track_high_thresh: 0.5
+
+# Low-confidence detections used for secondary (recovery) matching.
+track_low_thresh: 0.1
+
+# Minimum confidence to start a brand-new track.
+# Higher value prevents shadows, reflections, partial frames from spawning spurious IDs.
+new_track_thresh: 0.6
+
+# Fuse detection score with motion/IoU for matching (stabilizes weak detections).
+fuse_score: True
+
+

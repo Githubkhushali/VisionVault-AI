@@ -198,8 +198,8 @@ const detectPeopleWithYOLO = async (filePath) => {
     const fileBlob = await fs.openAsBlob(filePath);
     formData.append("image", fileBlob, path.basename(filePath));
 
-    console.log(`[YOLO] Sending image to http://127.0.0.1:5002/detect...`);
-    const response = await fetch("http://127.0.0.1:5002/detect", {
+    console.log(`[YOLO] Sending image to http://127.0.0.1:5002/detect-image...`);
+    const response = await fetch("http://127.0.0.1:5002/detect-image", {
       method: "POST",
       body: formData,
     });
@@ -234,6 +234,38 @@ const detectVideoWithYOLO = async (filePath) => {
 // ── Route: Health Check ───────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "VisionVault-AI backend is running with YOLO 🚀" });
+});
+
+// ── Route: Register a name for a detected identity ────────────
+app.post("/api/register-name", async (req, res) => {
+  const { identityId, name } = req.body;
+  if (!identityId || !name) {
+    return res.status(400).json({ error: "identityId and name are required" });
+  }
+  try {
+    const response = await fetch("http://127.0.0.1:5002/register-name", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identityId, name }),
+    });
+    const data = await response.json();
+    res.status(response.ok ? 200 : 500).json(data);
+  } catch (err) {
+    console.error("[register-name error]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Route: Get movement events (name + entry/exit counts) ─────
+app.get("/api/movements", async (req, res) => {
+  try {
+    const response = await fetch("http://127.0.0.1:5002/movements");
+    const data = await response.json();
+    res.status(response.ok ? 200 : 500).json(data);
+  } catch (err) {
+    console.error("[movements error]", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Route: Upload Image ───────────────────────────────────────

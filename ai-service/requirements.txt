@@ -1,0 +1,10 @@
+flask
+python-dotenv
+opencv-python
+ultralytics
+numpy
+deepface
+tf-keras
+facenet-pytorch
+torch
+boto3

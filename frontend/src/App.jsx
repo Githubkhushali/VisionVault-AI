@@ -734,36 +734,151 @@ function App() {
                 )}
               </div>
 
-              {/* Recurring Identities */}
-              <div className="dashboard-panel">
+              {/* All Identities — with names, photos, and unknown name input */}
+              <div className="dashboard-panel" style={{ gridColumn: '1 / -1' }}>
                 <h3 className="dashboard-panel-title">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                  Top Recurring Identities
+                  All Detected Identities
                 </h3>
                 {analyticsLoading ? (
                   <p style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>Loading identities...</p>
                 ) : analyticsIdentities.length > 0 ? (
-                  <div className="identities-list">
-                    {analyticsIdentities.map((id, idx) => (
-                      <div key={id.id} className="identity-item">
-                        <img
-                          src={id.canonicalFaceUrl || '/placeholder-face.png'}
-                          alt={id.id}
-                          className="identity-thumb"
-                          onError={(e) => { e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="%238E8276" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' }}
-                        />
-                        <div className="identity-details">
-                          <span className="identity-name">{id.id}</span>
-                          <span className="identity-meta">Last seen: {id.lastSeen}</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                    {analyticsIdentities.map((identity, idx) => {
+                      const isKnown = !!identity.name;
+                      const initial = isKnown ? identity.name[0].toUpperCase() : '?';
+                      const displayName = identity.name || 'Unknown';
+                      return (
+                        <div key={identity.id} style={{
+                          background: '#0d1117',
+                          border: `1px solid ${isKnown ? '#065f46' : '#1f2937'}`,
+                          borderRadius: '12px', padding: '14px', display: 'flex',
+                          flexDirection: 'column', gap: '10px',
+                        }}>
+                          {/* Top row: avatar + name + appearances */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            {/* Face photo or initial avatar */}
+                            {identity.canonicalFaceUrl ? (
+                              <img
+                                src={identity.canonicalFaceUrl}
+                                alt={displayName}
+                                onError={e => { e.target.onerror = null; e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                style={{
+                                  width: '48px', height: '48px', borderRadius: '50%',
+                                  objectFit: 'cover', border: `2px solid ${isKnown ? '#34d399' : '#374151'}`,
+                                  flexShrink: 0,
+                                }}
+                              />
+                            ) : null}
+                            <div style={{
+                              width: '48px', height: '48px', borderRadius: '50%', flexShrink: 0,
+                              background: isKnown ? '#064e3b' : '#1f2937',
+                              display: identity.canonicalFaceUrl ? 'none' : 'flex',
+                              alignItems: 'center', justifyContent: 'center',
+                              fontWeight: 800, fontSize: '1.1rem',
+                              color: isKnown ? '#34d399' : '#9ca3af',
+                              border: `2px solid ${isKnown ? '#065f46' : '#374151'}`,
+                            }}>
+                              {initial}
+                            </div>
+
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: '#f9fafb', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {isKnown ? identity.name : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Unknown</span>}
+                              </p>
+                              <p style={{ margin: 0, fontSize: '0.68rem', color: '#4b5563', fontFamily: 'monospace' }}>{identity.id}</p>
+                            </div>
+
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#60a5fa' }}>{identity.totalAppearances}</span>
+                              <p style={{ margin: 0, fontSize: '0.65rem', color: '#6b7280' }}>appearances</p>
+                            </div>
+                          </div>
+
+                          {/* Entry/exit counts if available */}
+                          {(identity.entryCount !== null || identity.exitCount !== null) && (
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              {identity.entryCount !== null && (
+                                <span style={{ fontSize: '0.78rem', color: '#34d399', fontWeight: 600 }}>
+                                  ▲ {identity.entryCount} {identity.entryCount === 1 ? 'entry' : 'entries'}
+                                </span>
+                              )}
+                              {identity.exitCount > 0 && (
+                                <span style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 600 }}>
+                                  ▼ exited {identity.exitCount} {identity.exitCount === 1 ? 'time' : 'times'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Last seen */}
+                          <p style={{ margin: 0, fontSize: '0.7rem', color: '#4b5563' }}>
+                            Last seen: {identity.lastSeen || 'N/A'}
+                          </p>
+
+                          {/* Name input for unknowns */}
+                          {!isKnown && (
+                            <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                              <input
+                                type="text"
+                                placeholder="Name this person..."
+                                id={`analytics-name-${identity.id}`}
+                                style={{
+                                  flex: 1, background: '#1f2937', border: '1px solid #374151',
+                                  borderRadius: '6px', padding: '5px 10px', fontSize: '0.8rem',
+                                  color: '#fff', outline: 'none',
+                                }}
+                                onKeyDown={async e => {
+                                  if (e.key !== 'Enter') return;
+                                  const name = e.target.value.trim();
+                                  if (!name) return;
+                                  const btn = e.target.nextSibling;
+                                  try {
+                                    const res = await fetch('/api/register-name', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ identityId: identity.id, name }),
+                                    });
+                                    const data = await res.json();
+                                    if (data.success) { btn.textContent = '✅'; setTimeout(() => fetchAnalytics(), 1500); }
+                                    else { btn.textContent = '❌'; }
+                                  } catch { btn.textContent = '❌'; }
+                                }}
+                              />
+                              <button
+                                style={{
+                                  padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem',
+                                  fontWeight: 700, cursor: 'pointer', border: 'none',
+                                  background: '#1d4ed8', color: '#fff',
+                                }}
+                                onClick={async (e) => {
+                                  const input = document.getElementById(`analytics-name-${identity.id}`);
+                                  const name = (input?.value || '').trim();
+                                  if (!name) return;
+                                  try {
+                                    const res = await fetch('/api/register-name', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ identityId: identity.id, name }),
+                                    });
+                                    const data = await res.json();
+                                    e.target.textContent = data.success ? '✅' : '❌';
+                                    if (data.success) setTimeout(() => fetchAnalytics(), 1500);
+                                  } catch { e.target.textContent = '❌'; }
+                                }}
+                              >
+                                Save
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div className="identity-count-badge">
-                          {id.totalAppearances}×
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <p style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>No recognized identities yet.</p>
+                  <p style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                    No identities yet. Run a live session or upload an image/video to begin tracking.
+                  </p>
                 )}
               </div>
             </div>

@@ -65,9 +65,34 @@ router.get("/identities", async (req, res) => {
         TO_CHAR(last_seen, 'Mon DD, YYYY HH24:MI') as "lastSeen"
       FROM identities
       ORDER BY total_appearances DESC, last_seen DESC
-      LIMIT 20;
+      LIMIT 50;
     `);
-    res.json(rows);
+
+    // Merge names from the AI service's SQLite persons table via /movements
+    // The movements endpoint returns { movements: [{ identityId, name, entryCount, exitCount }] }
+    let nameMap = {};
+    try {
+      const movRes = await fetch("http://127.0.0.1:5002/movements");
+      if (movRes.ok) {
+        const movData = await movRes.json();
+        (movData.movements || []).forEach(m => {
+          if (m.name && m.name !== "Unknown") {
+            nameMap[m.identityId] = { name: m.name, entryCount: m.entryCount, exitCount: m.exitCount };
+          }
+        });
+      }
+    } catch (e) {
+      // AI service may not be running — gracefully skip name enrichment
+    }
+
+    const enriched = rows.map(r => ({
+      ...r,
+      name: nameMap[r.id]?.name || null,
+      entryCount: nameMap[r.id]?.entryCount ?? null,
+      exitCount: nameMap[r.id]?.exitCount ?? null,
+    }));
+
+    res.json(enriched);
   } catch (error) {
     console.error("[Analytics] Error fetching identities:", error.message);
     res.status(500).json({ error: "Failed to fetch identities data." });

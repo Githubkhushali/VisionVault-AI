@@ -740,3 +740,16 @@ app.listen(PORT, () => {
   console.log(`  ║   http://localhost:${PORT}              ║`);
   console.log(`  ╚══════════════════════════════════════╝\n`);
 });
+
+// ── Serve React/Vite frontend static build ────────────────────
+const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+  // SPA fallback — serve index.html for any non-API route
+  app.get(/^(?!\/api).*$/, (req, res) => {
+    res.sendFile(path.join(FRONTEND_DIST, "index.html"));
+  });
+  console.log("[Frontend] Serving static files from:", FRONTEND_DIST);
+} else {
+  console.warn("[Frontend] No dist build found at:", FRONTEND_DIST);
+}

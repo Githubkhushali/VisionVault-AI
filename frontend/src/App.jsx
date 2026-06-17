@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import WebcamDetector from './components/WebcamDetector';
+import FaceTrackingDashboard from './components/FaceTrackingDashboard';
+import LogAnalysisDashboard from './components/LogAnalysisDashboard';
 
 
 // ─────────────────────────────────────────────────────────────
@@ -52,7 +54,7 @@ function App() {
   // ── Fetch History ──────────────────────────────────────────
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await axios.get('/api/analytics/sessions');
+      const response = await axios.get('/api/history');
       const sessions = response.data.sessions || [];
       setSessionsLog(sessions);
 
@@ -363,6 +365,20 @@ function App() {
             onClick={() => switchMode('webcam')}
           >
             Live Tracking
+          </button>
+
+          <button
+            id="tab-logs"
+            role="tab"
+            aria-selected={mode === 'logs'}
+            className={`mode-tab ${mode === 'logs' ? 'active' : ''}`}
+            onClick={() => switchMode('logs')}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            Log Analysis
           </button>
         </div>
 
@@ -834,10 +850,10 @@ function App() {
                                   if (!name) return;
                                   const btn = e.target.nextSibling;
                                   try {
-                                    const res = await fetch('/api/register-name', {
-                                      method: 'POST',
+                                    const res = await fetch('/api/history/update-name', {
+                                      method: 'PATCH',
                                       headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ identityId: identity.id, name }),
+                                      body: JSON.stringify({ identityId: identity.id, newName: name }),
                                     });
                                     const data = await res.json();
                                     if (data.success) { btn.textContent = '✅'; setTimeout(() => fetchAnalytics(), 1500); }
@@ -856,10 +872,10 @@ function App() {
                                   const name = (input?.value || '').trim();
                                   if (!name) return;
                                   try {
-                                    const res = await fetch('/api/register-name', {
-                                      method: 'POST',
+                                    const res = await fetch('/api/history/update-name', {
+                                      method: 'PATCH',
                                       headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ identityId: identity.id, name }),
+                                      body: JSON.stringify({ identityId: identity.id, newName: name }),
                                     });
                                     const data = await res.json();
                                     e.target.textContent = data.success ? '✅' : '❌';
@@ -963,6 +979,20 @@ function App() {
           </div>
         )}
 
+        {/* ── LIVE WEBCAM MODE ──────────────────────────────── */}
+        {mode === 'webcam' && (
+          <div role="tabpanel" aria-labelledby="tab-webcam">
+            <FaceTrackingDashboard />
+          </div>
+        )}
+
+        {/* ── LOG ANALYSIS MODE ─────────────────────────────── */}
+        {mode === 'logs' && (
+          <div role="tabpanel" aria-labelledby="tab-logs">
+            <LogAnalysisDashboard />
+          </div>
+        )}
+
         {/* Upload History Section (hide on Analytics view) */}
         {mode !== 'analytics' && (
           <section className="history-section">
@@ -1029,26 +1059,6 @@ function App() {
               )}
             </div>
           </section>
-        )}
-
-        {/* ── LIVE WEBCAM MODE ──────────────────────────────── */}
-        {mode === 'webcam' && (
-          <div className="card" role="tabpanel" aria-labelledby="tab-webcam">
-            <div className="result-header">
-              <h2 className="status-title" style={{ margin: 0 }}>
-                Live Face Tracking
-              </h2>
-            </div>
-
-            <p
-              className="status-description"
-              style={{ marginBottom: '20px' }}
-            >
-              Real-time in-browser face detection.
-            </p>
-
-            <WebcamDetector />
-          </div>
         )}
 
         {/* Footer */}

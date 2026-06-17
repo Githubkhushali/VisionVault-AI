@@ -111,6 +111,13 @@ const initDb = async () => {
       );
     `);
 
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS persons (
+        identity_id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL
+      );
+    `);
+
     // 5. Phase 7: session_people table
     await query.run(`
       CREATE TABLE IF NOT EXISTS session_people (
@@ -126,6 +133,51 @@ const initDb = async () => {
         reentries INTEGER DEFAULT 0
       );
     `);
+
+    // 6. live_stream_sessions table
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS live_stream_sessions (
+        id VARCHAR(100) PRIMARY KEY,
+        started_at TIMESTAMP,
+        ended_at TIMESTAMP,
+        duration_ms BIGINT,
+        total_entries INTEGER DEFAULT 0,
+        total_exits INTEGER DEFAULT 0,
+        unique_faces_count INTEGER DEFAULT 0,
+        s3_url TEXT
+      );
+    `);
+
+    // 7. live_stream_faces table
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS live_stream_faces (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(100) REFERENCES live_stream_sessions(id) ON DELETE CASCADE,
+        identity_id VARCHAR(100),
+        appearance_count INTEGER DEFAULT 1,
+        s3_url TEXT,
+        first_seen TIMESTAMP,
+        last_seen TIMESTAMP
+      );
+    `);
+
+    // 8. daily_logs — per-person per-day aggregates (mirrors SQLite daily_person_log)
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS daily_logs (
+        date DATE NOT NULL,
+        person_id VARCHAR(100) NOT NULL,
+        name VARCHAR(255),
+        first_seen TIME,
+        last_seen TIME,
+        entry_count INTEGER DEFAULT 1,
+        face_url TEXT,
+        PRIMARY KEY (date, person_id)
+      );
+    `);
+
+    // 9. Extend identities with quality + s3 person folder
+    await query.run(`ALTER TABLE identities ADD COLUMN IF NOT EXISTS embedding_quality NUMERIC(8,4);`);
+    await query.run(`ALTER TABLE identities ADD COLUMN IF NOT EXISTS s3_person_folder TEXT;`);
 
     console.log("[Database] Connected successfully to PostgreSQL database. All tables verified.");
   } catch (err) {

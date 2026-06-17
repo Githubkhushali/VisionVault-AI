@@ -28,12 +28,27 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 # Two face embeddings whose cosine similarity exceeds this threshold are
-# considered the same person.  0.75 is a well-calibrated value for VGGFace2:
-# same-person pairs typically score > 0.80, different-person pairs < 0.65.
-SIMILARITY_THRESHOLD = 0.75
+# considered the same person.  0.68 is calibrated for ArcFace/VGGFace2:
+# same-person pairs typically score > 0.75, different-person pairs < 0.60.
+SIMILARITY_THRESHOLD = 0.68
 
 # InceptionResnetV1 expects 160×160 input, regardless of the crop size we save.
 FACENET_INPUT_SIZE = 160
+
+# Minimum Laplacian variance to consider a face image high-quality.
+QUALITY_THRESHOLD = 80.0
+
+
+def face_quality_score(img_bgr) -> float:
+    """
+    Compute a sharpness score for a BGR face crop using Laplacian variance.
+    Returns a float — higher is sharper.  Blurry/partial faces score < 80.
+    """
+    import cv2
+    if img_bgr is None or img_bgr.size == 0:
+        return 0.0
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
 
 class FaceEmbedder:

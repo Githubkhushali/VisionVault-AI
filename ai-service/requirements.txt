@@ -8,3 +8,6 @@ tf-keras
 facenet-pytorch
 torch
 boto3
+faiss-cpu
+Pillow
+scipy

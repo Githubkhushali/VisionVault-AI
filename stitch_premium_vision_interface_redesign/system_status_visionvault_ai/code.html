@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>System Status - Aegis AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "on-tertiary-fixed": "#0f1f16",
+                            "primary-fixed-dim": "#c8c8b0",
+                            "tertiary": "#ffffff",
+                            "primary-container": "#e4e4cc",
+                            "secondary-container": "#464858",
+                            "on-primary-fixed": "#1b1d0e",
+                            "secondary-fixed-dim": "#c5c5d8",
+                            "inverse-on-surface": "#313030",
+                            "surface-dim": "#131313",
+                            "surface-container-high": "#2a2a2a",
+                            "on-tertiary-container": "#58685e",
+                            "on-error": "#690005",
+                            "surface": "#131313",
+                            "primary": "#ffffff",
+                            "tertiary-container": "#d5e7da",
+                            "on-primary-fixed-variant": "#474836",
+                            "on-tertiary": "#24342b",
+                            "secondary-fixed": "#e1e1f5",
+                            "secondary": "#c5c5d8",
+                            "on-secondary-container": "#b6b7ca",
+                            "error": "#ffb4ab",
+                            "surface-tint": "#c8c8b0",
+                            "on-tertiary-fixed-variant": "#3a4a41",
+                            "inverse-primary": "#5e604d",
+                            "tertiary-fixed": "#d5e7da",
+                            "on-secondary-fixed": "#191b29",
+                            "primary-fixed": "#e4e4cc",
+                            "outline-variant": "#47473f",
+                            "on-secondary-fixed-variant": "#444655",
+                            "on-error-container": "#ffdad6",
+                            "on-surface": "#e5e2e1",
+                            "surface-container-highest": "#353534",
+                            "surface-variant": "#353534",
+                            "error-container": "#93000a",
+                            "inverse-surface": "#e5e2e1",
+                            "surface-container-low": "#1c1b1b",
+                            "surface-container": "#201f1f",
+                            "outline": "#929187",
+                            "surface-container-lowest": "#0e0e0e",
+                            "tertiary-fixed-dim": "#b9cbbe",
+                            "surface-bright": "#3a3939",
+                            "on-background": "#e5e2e1",
+                            "background": "#131313",
+                            "on-surface-variant": "#c8c7bc",
+                            "on-primary-container": "#646652",
+                            "on-primary": "#303221",
+                            "on-secondary": "#2e2f3e"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.25rem",
+                            "lg": "0.5rem",
+                            "xl": "0.75rem",
+                            "full": "9999px"
+                    },
+                    "spacing": {
+                            "xl": "40px",
+                            "gutter": "24px",
+                            "lg": "24px",
+                            "2xl": "64px",
+                            "md": "16px",
+                            "sm": "8px",
+                            "margin": "32px",
+                            "base": "4px",
+                            "xs": "4px"
+                    },
+                    "fontFamily": {
+                            "headline-md": ["Inter"],
+                            "body-md": ["Inter"],
+                            "body-lg": ["Inter"],
+                            "headline-lg": ["Inter"],
+                            "label-sm": ["Inter"],
+                            "label-md": ["Inter"],
+                            "display": ["Inter"]
+                    },
+                    "fontSize": {
+                            "headline-md": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                            "body-md": ["15px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                            "body-lg": ["18px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                            "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                            "label-sm": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                            "label-md": ["13px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                            "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(18, 18, 18, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        .pulse-dot-active {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(188, 206, 193, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(188, 206, 193, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(188, 206, 193, 0); }
+        }
+        .status-badge-active { background: rgba(188, 206, 193, 0.1); color: #BCCEC1; }
+        .status-badge-error { background: rgba(255, 180, 171, 0.1); color: #ffb4ab; }
+        
+        .hud-border {
+            border-top: 0.5px solid rgba(255, 255, 255, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased selection:bg-primary-fixed/20">
+<!-- TopNavBar -->
+<nav class="fixed top-0 right-0 h-16 z-40 bg-surface/70 backdrop-blur-xl shadow-sm border-b border-white/10 flex justify-between items-center w-[calc(100%-16rem)] ml-64 px-8 hidden md:flex">
+<div class="flex items-center gap-6">
+<div class="font-display text-headline-md font-bold text-primary">Aegis AI</div>
+<div class="flex gap-4">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md cursor-pointer active:opacity-80" href="#">Docs</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md cursor-pointer active:opacity-80" href="#">API</a>
+<a class="text-primary-fixed font-bold border-b-2 border-primary-fixed pb-1 font-label-md text-label-md cursor-pointer active:opacity-80" href="#">Status</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-80">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-80">help</span>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="A small, professional user avatar. A subtle gradient portrait in deep greens and blacks, embodying a technical, authoritative 'Quiet Authority' tone. High-end modern corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuChTsHeM0KiuFebsH76bGyPt5YQdp1qIpuTOCU6o7x5Z29c3tdphk-L4GhMmcNh4X559VlZVBOGPyqWlinisjvlbcRrseZQnFACso0O27qRev52kwD6BplxSHy2PIwEd6CdMF4ViEjY3CtjUlrVaF_Z5thdOwD1uTiWTjf_iUpgT8TV8gZsNcR6vOgzQcQjv6kxZ6B_RzlrDMN4KQz4BbxmXaT7sQcVp8VfW17WaqSGldFSMJHwjY9JuckkMsQbfQHAj2d_9BnkPANt"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface/70 backdrop-blur-xl border-r border-white/10 shadow-2xl flex flex-col h-full py-6 z-50">
+<div class="px-6 mb-8 flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary-fixed/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-fixed">security</span>
+</div>
+<div>
+<h1 class="font-display text-headline-md font-bold text-primary">Aegis AI</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mt-1">Enterprise Detection</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors font-body-md text-body-md hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors font-body-md text-body-md hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">cloud_upload</span>
+                Upload
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors font-body-md text-body-md hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">history</span>
+                History
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors font-body-md text-body-md hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">face</span>
+                Face Gallery
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors font-body-md text-body-md hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">live_tv</span>
+                Live Stream
+            </a>
+</nav>
+<div class="px-6 mt-auto">
+<button class="w-full py-2 px-4 bg-primary-fixed/10 text-primary-fixed font-label-md text-label-md rounded-lg border border-primary-fixed/20 hover:bg-primary-fixed/20 transition-colors mb-6">
+                Upgrade to Pro
+            </button>
+<div class="flex flex-col gap-2 border-t border-white/5 pt-4">
+<a class="flex items-center gap-3 text-on-surface-variant hover:text-primary-fixed transition-colors font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">settings</span>
+                    Settings
+                </a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:text-primary-fixed transition-colors font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+                    Support
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="md:ml-64 pt-24 p-margin min-h-screen">
+<div class="max-w-7xl mx-auto">
+<header class="mb-xl">
+<h2 class="font-headline-lg text-headline-lg text-primary mb-2">System Health &amp; Devices</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Real-time telemetry and infrastructure status for VisionVault-AI network.</p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Infrastructure Status Panel -->
+<div class="lg:col-span-4 flex flex-col gap-gutter">
+<div class="glass-panel rounded-xl p-lg hud-border">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Core Services</h3>
+<div class="flex items-center gap-2 status-badge-active px-2 py-1 rounded-full">
+<div class="w-2 h-2 rounded-full bg-[#BCCEC1] pulse-dot-active"></div>
+<span class="font-label-sm text-[10px]">ALL SYSTEMS NOMINAL</span>
+</div>
+</div>
+<ul class="flex flex-col gap-4">
+<li class="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">dns</span>
+<span class="font-body-md text-body-md text-on-surface">API Gateway</span>
+</div>
+<span class="text-[#BCCEC1] font-label-md">99.99%</span>
+</li>
+<li class="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">psychology</span>
+<span class="font-body-md text-body-md text-on-surface">Inference Engine</span>
+</div>
+<span class="text-[#BCCEC1] font-label-md">14ms ping</span>
+</li>
+<li class="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">database</span>
+<span class="font-body-md text-body-md text-on-surface">Vector DB</span>
+</div>
+<span class="text-[#BCCEC1] font-label-md">Syncing</span>
+</li>
+</ul>
+</div>
+<div class="glass-panel rounded-xl p-lg hud-border">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-4">Storage &amp; Comms</h3>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-low p-4 rounded-lg border border-white/5">
+<span class="material-symbols-outlined text-on-surface-variant mb-2">cloud</span>
+<div class="font-label-sm text-on-surface-variant uppercase">AWS S3</div>
+<div class="font-body-md text-primary mt-1">Healthy</div>
+</div>
+<div class="bg-surface-container-low p-4 rounded-lg border border-white/5">
+<span class="material-symbols-outlined text-on-surface-variant mb-2">mail</span>
+<div class="font-label-sm text-on-surface-variant uppercase">SES/SMS</div>
+<div class="font-body-md text-primary mt-1">Operational</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Device Management Data Table -->
+<div class="lg:col-span-8">
+<div class="glass-panel rounded-xl overflow-hidden hud-border flex flex-col h-full">
+<div class="p-lg border-b border-white/5 flex items-center justify-between bg-surface-container-low/50 backdrop-blur-md sticky top-0">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Active Edge Devices</h3>
+<button class="bg-white/5 border border-white/10 text-white px-3 py-1.5 rounded-lg font-label-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">add</span> Add Node
+                            </button>
+</div>
+<div class="flex-1 overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-white/5">
+<th class="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Device ID</th>
+<th class="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Location</th>
+<th class="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Status</th>
+<th class="p-4 font-label-sm text-label-sm text-on-surface-variant uppercase">Stream Health</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer">
+<td class="p-4 font-body-md text-primary flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant">videocam</span>
+                                            NODE-094A
+                                        </td>
+<td class="p-4 font-body-md text-on-surface-variant">Main Entrance</td>
+<td class="p-4">
+<div class="inline-flex items-center gap-2 status-badge-active px-2 py-1 rounded-full">
+<div class="w-1.5 h-1.5 rounded-full bg-[#BCCEC1] pulse-dot-active"></div>
+<span class="font-label-sm text-[10px]">ONLINE</span>
+</div>
+</td>
+<td class="p-4 font-body-md text-on-surface-variant">4K / 30fps</td>
+</tr>
+<tr class="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer">
+<td class="p-4 font-body-md text-primary flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant">videocam</span>
+                                            NODE-112B
+                                        </td>
+<td class="p-4 font-body-md text-on-surface-variant">Perimeter West</td>
+<td class="p-4">
+<div class="inline-flex items-center gap-2 status-badge-active px-2 py-1 rounded-full">
+<div class="w-1.5 h-1.5 rounded-full bg-[#BCCEC1] pulse-dot-active"></div>
+<span class="font-label-sm text-[10px]">ONLINE</span>
+</div>
+</td>
+<td class="p-4 font-body-md text-on-surface-variant">1080p / 60fps</td>
+</tr>
+<tr class="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer">
+<td class="p-4 font-body-md text-primary flex items-center gap-3">
+<span class="material-symbols-outlined text-error">videocam_off</span>
+                                            NODE-044C
+                                        </td>
+<td class="p-4 font-body-md text-on-surface-variant">Loading Dock</td>
+<td class="p-4">
+<div class="inline-flex items-center gap-2 status-badge-error px-2 py-1 rounded-full">
+<div class="w-1.5 h-1.5 rounded-full bg-error"></div>
+<span class="font-label-sm text-[10px]">OFFLINE</span>
+</div>
+</td>
+<td class="p-4 font-body-md text-error">Signal Lost</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

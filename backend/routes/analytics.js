@@ -18,6 +18,7 @@
 const express = require("express");
 const router  = express.Router();
 const db      = require("../db-postgres");
+const s3Service = require("../services/S3Service");
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Helpers
@@ -105,11 +106,18 @@ router.get("/identities", async (req, res) => {
       ORDER BY i.total_appearances DESC, i.last_seen DESC
       LIMIT 50;
     `);
-    res.json(rows.map(r => ({
-      ...r,
-      totalAppearances: toInt(r.totalAppearances),
-      name: r.name || null,
-    })));
+    
+    const preSignedRows = [];
+    for (const r of rows) {
+      const canonicalFaceUrl = await s3Service.getPresignedUrl(r.canonicalFaceUrl || buildFaceUrl({ identity_id: r.id }));
+      preSignedRows.push({
+        ...r,
+        canonicalFaceUrl,
+        totalAppearances: toInt(r.totalAppearances),
+        name: r.name || null,
+      });
+    }
+    res.json(preSignedRows);
   } catch (err) {
     console.error("[Analytics] identities error:", err.message);
     res.status(500).json({ error: "Failed to fetch identities data." });
@@ -150,7 +158,7 @@ router.get("/sessions", async (req, res) => {
         FROM sessions
         UNION ALL
         SELECT
-          id, 'Live Stream' as filename, 'live' as type, NULL as "s3Url",
+          id, 'Live Stream' as filename, 'live' as type, s3_url as "s3Url",
           started_at as sort_time,
           TO_CHAR(started_at, 'Mon DD, YYYY HH24:MI') as "processedAt",
           0 as "totalFrames", unique_faces_count as "peopleCount",
@@ -168,42 +176,74 @@ router.get("/sessions", async (req, res) => {
       s.uniqueIdentitiesCount = toInt(s.uniqueIdentitiesCount);
       s.averageConfidence    = toFloat(s.averageConfidence);
 
+      if (s.s3Url) {
+        s.s3Url = await s3Service.getPresignedUrl(s.s3Url);
+      }
+
       if (s.type === "live") {
         const faces = await db.all(`
-          SELECT lsf.identity_id as "identityId", lsf.s3_url as "s3CropUrl",
-                 lsf.appearance_count as "framesAppeared", p.name
+          SELECT lsf.identity_id as "identityId",
+                 lsf.s3_url as "s3Url",
+                 i.canonical_face_url as "canonicalFaceUrl",
+                 lsf.appearance_count as "framesAppeared",
+                 p.name
           FROM live_stream_faces lsf
+          LEFT JOIN identities i ON i.id = lsf.identity_id
           LEFT JOIN persons p ON p.identity_id = lsf.identity_id
           WHERE lsf.session_id = ?
         `, [s.id]);
-        s.people = faces.map(f => ({
-          identityId:   f.identityId,
-          s3CropUrl:    f.s3CropUrl,
-          framesAppeared: toInt(f.framesAppeared),
-          name:         f.name || null,
-        }));
+        
+        s.people = [];
+        for (const f of faces) {
+          const rawCropUrl = buildFaceUrl({
+            identity_id: f.identityId,
+            canonical_face_url: f.canonicalFaceUrl,
+            s3_url: f.s3Url
+          });
+          const s3CropUrl = await s3Service.getPresignedUrl(rawCropUrl);
+          s.people.push({
+            identityId:   f.identityId,
+            s3CropUrl,
+            framesAppeared: toInt(f.framesAppeared),
+            name:         f.name || null,
+          });
+        }
       } else {
         const people = await db.all(`
-          SELECT track_id as "trackId",
-                 ROUND(average_confidence * 100, 1) as "averageConfidence",
-                 face_count as "faceCount",
-                 best_face_confidence as "bestFaceConfidence",
-                 identity_id as "identityId",
-                 s3_crop_url as "s3CropUrl",
-                 frames_appeared as "framesAppeared",
-                 reentries
-          FROM session_people WHERE session_id = ? ORDER BY track_id;
+          SELECT sp.track_id as "trackId",
+                 ROUND(sp.average_confidence * 100, 1) as "averageConfidence",
+                 sp.face_count as "faceCount",
+                 sp.best_face_confidence as "bestFaceConfidence",
+                 sp.identity_id as "identityId",
+                 sp.s3_crop_url as "s3CropUrl",
+                 i.canonical_face_url as "canonicalFaceUrl",
+                 sp.frames_appeared as "framesAppeared",
+                 sp.reentries
+          FROM session_people sp
+          LEFT JOIN identities i ON i.id = sp.identity_id
+          WHERE sp.session_id = ?
+          ORDER BY sp.track_id;
         `, [s.id]);
-        s.people = people.map(p => ({
-          trackId:          p.trackId,
-          averageConfidence: toFloat(p.averageConfidence),
-          faceCount:         toInt(p.faceCount),
-          bestFaceConfidence: toFloat(p.bestFaceConfidence),
-          identityId:        p.identityId,
-          s3CropUrl:         p.s3CropUrl,
-          framesAppeared:    toInt(p.framesAppeared),
-          reentries:         toInt(p.reentries),
-        }));
+        
+        s.people = [];
+        for (const p of people) {
+          const rawCropUrl = buildFaceUrl({
+            identity_id: p.identityId,
+            canonical_face_url: p.canonicalFaceUrl,
+            s3_url: p.s3CropUrl
+          });
+          const s3CropUrl = await s3Service.getPresignedUrl(rawCropUrl);
+          s.people.push({
+            trackId:          p.trackId,
+            averageConfidence: toFloat(p.averageConfidence),
+            faceCount:         toInt(p.faceCount),
+            bestFaceConfidence: toFloat(p.bestFaceConfidence),
+            identityId:        p.identityId,
+            s3CropUrl,
+            framesAppeared:    toInt(p.framesAppeared),
+            reentries:         toInt(p.reentries),
+          });
+        }
       }
     }
     res.json({ sessions });
@@ -432,13 +472,17 @@ router.get("/daily-logs", async (req, res) => {
     merge(uploadRows);
     merge(dailyRows);
 
-    const people = [...map.values()]
-      .map(p => ({
+    const people = [];
+    for (const p of map.values()) {
+      const faceUrl = await s3Service.getPresignedUrl(p.faceUrl);
+      people.push({
         ...p,
+        faceUrl,
         first_seen: toTimeStr(p.first_seen),
         last_seen:  toTimeStr(p.last_seen),
-      }))
-      .sort((a, b) => b.entry_count - a.entry_count);
+      });
+    }
+    people.sort((a, b) => b.entry_count - a.entry_count);
 
     res.json({ date, people });
   } catch (err) {
@@ -653,13 +697,19 @@ router.get("/top-people", async (req, res) => {
     addTop(uploadTop);
     addTop(dailyTop);
 
-    const topPeople = [...map.values()]
+    const sortedPeople = [...map.values()]
       .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
-      .map(p => ({
+      .slice(0, 10);
+
+    const topPeople = [];
+    for (const p of sortedPeople) {
+      const faceUrl = await s3Service.getPresignedUrl(p.faceUrl);
+      topPeople.push({
         ...p,
+        faceUrl,
         last_seen: p.last_seen ? toTimeStr(new Date(p.last_seen)) : null,
-      }));
+      });
+    }
 
     res.json({ topPeople });
   } catch (err) {

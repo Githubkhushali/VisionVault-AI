@@ -1,5 +1,7 @@
 const liveStreamService = require('../services/LiveStreamService');
 const sessionService = require('../services/SessionService');
+const notificationService = require('../services/notificationService');
+const emailService = require('../services/emailService');
 const fs = require('fs');
 const db = require('../db-postgres');
 
@@ -8,6 +10,7 @@ class LiveStreamController {
     try {
       const sessionId = liveStreamService.startSession();
       console.log(`[Session] Started: ${sessionId}`);
+      notificationService.createNotification('LIVE_STREAM_STARTED', 'Live Stream Active', `Session ${sessionId} has begun recording.`, 'INFO');
       res.json({ success: true, sessionId });
     } catch (error) {
       res.status(409).json({ error: error.message });
@@ -77,8 +80,22 @@ class LiveStreamController {
             // Fault-Tolerant live tracking data (name & appearances)
             liveStreamService.recordFaceAppearance(det.identityId, det.s3Url || null, trackEvt);
             
-            // Optional: You can persist to DB immediately here if needed, but the prompt says 
-            // "save a new record to the DB ... Once the S3 link is generated", so we just accumulate.
+            const nameToDisplay = det.name || det.identityId;
+
+            if (trackEvt.event === 'ENTERED') {
+              notificationService.createNotification('ENTRY_EVENT', 'Person Entered', `${nameToDisplay} entered the live stream.`, 'INFO');
+            } else if (trackEvt.event === 'EXITED') {
+              notificationService.createNotification('EXIT_EVENT', 'Person Exited', `${nameToDisplay} left the live stream.`, 'INFO');
+            }
+
+            const threshold = 0.65;
+            const isUnknown = (det.confidence && det.confidence < threshold) || det.identityId.includes('Unknown') || det.identityId.includes('fallback');
+            if (isUnknown && trackEvt.event === 'ENTERED') {
+              notificationService.createNotification('UNKNOWN_PERSON', 'Unknown Person Detected (Live)', `An unknown person entered the live stream.`, 'HIGH');
+              if (emailService && det.s3Url) {
+                emailService.sendUnknownPersonAlert(det.s3Url);
+              }
+            }
           }
         }
       }

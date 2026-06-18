@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0B0B0B;
+            color: #e5e2e1;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: rgba(18, 18, 18, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        .inner-glow {
+            box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.15);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+        }
+        @keyframes pulse-sage {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        .pulse-dot {
+            animation: pulse-sage 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Page Entrance Animation */
+        @keyframes fade-in-up {
+            0% {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-entrance {
+            animation: fade-in-up 0.5s cubic-bezier(0.2, 0, 0.2, 1) forwards;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .animate-entrance {
+                animation: none;
+                opacity: 1;
+                transform: none;
+            }
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-fixed-dim": "#c8c8b0",
+                        "on-surface-variant": "#c8c7bc",
+                        "primary-fixed": "#e4e4cc",
+                        "surface-bright": "#3a3939",
+                        "on-tertiary-fixed-variant": "#3a4a41",
+                        "on-surface": "#e5e2e1",
+                        "tertiary-fixed-dim": "#b9cbbe",
+                        "tertiary-container": "#d5e7da",
+                        "inverse-surface": "#e5e2e1",
+                        "surface-dim": "#131313",
+                        "on-secondary-fixed-variant": "#444655",
+                        "surface-tint": "#c8c8b0",
+                        "on-tertiary-container": "#58685e",
+                        "primary": "#ffffff",
+                        "on-secondary-fixed": "#191b29",
+                        "on-background": "#e5e2e1",
+                        "secondary": "#c5c5d8",
+                        "on-secondary-container": "#b6b7ca",
+                        "tertiary-fixed": "#d5e7da",
+                        "primary-container": "#e4e4cc",
+                        "error-container": "#93000a",
+                        "inverse-primary": "#5e604d",
+                        "surface-container-high": "#2a2a2a",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#0f1f16",
+                        "outline-variant": "#47473f",
+                        "background": "#131313",
+                        "on-error": "#690005",
+                        "on-primary-fixed-variant": "#474836",
+                        "error": "#ffb4ab",
+                        "secondary-fixed": "#e1e1f5",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-fixed": "#1b1d0e",
+                        "secondary-container": "#464858",
+                        "surface-variant": "#353534",
+                        "on-primary": "#303221",
+                        "surface-container": "#201f1f",
+                        "inverse-on-surface": "#313030",
+                        "secondary-fixed-dim": "#c5c5d8",
+                        "on-secondary": "#2e2f3e",
+                        "surface-container-highest": "#353534",
+                        "surface-container-low": "#1c1b1b",
+                        "surface": "#131313",
+                        "tertiary": "#ffffff",
+                        "on-tertiary": "#24342b",
+                        "on-primary-container": "#646652",
+                        "outline": "#929187"
+                    },
+                    fontFamily: {
+                        "display": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 border-r border-white/10 bg-surface/70 backdrop-blur-xl shadow-2xl flex flex-col py-6 z-50">
+<div class="px-6 mb-10">
+<h1 class="font-display text-headline-md font-bold text-primary">Aegis AI</h1>
+<p class="font-body-md text-label-sm text-on-surface-variant opacity-60">Enterprise Detection</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 mx-4 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 mx-4 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="cloud_upload">cloud_upload</span>
+<span class="font-body-md">Upload</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 mx-4 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-body-md">History</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-primary-fixed bg-primary-fixed/10 border-l-4 border-primary-fixed mx-4 rounded-r-lg" href="#">
+<span class="material-symbols-outlined" data-icon="face">face</span>
+<span class="font-body-md">Face Gallery</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 mx-4 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="live_tv">live_tv</span>
+<span class="font-body-md">Live Stream</span>
+</a>
+</nav>
+<div class="mt-auto px-4 space-y-1">
+<button class="w-full mb-6 py-3 px-4 bg-primary-fixed text-on-primary-fixed font-bold rounded-xl active:scale-95 transition-transform inner-glow">
+            Upgrade to Pro
+        </button>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary transition-colors hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span class="font-body-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 h-16 z-40 bg-surface/70 backdrop-blur-xl border-b border-white/10 flex justify-between items-center w-[calc(100%-16rem)] ml-64 px-8">
+<div class="flex items-center gap-4 bg-surface-container-low px-4 py-2 rounded-full border border-white/5 w-96">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-label-md text-on-surface w-full placeholder:text-on-surface-variant/40" placeholder="Filter by metadata, names, or tags..." type="text"/>
+</div>
+<div class="flex items-center gap-8">
+<nav class="hidden md:flex gap-6">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md" href="#">Docs</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md" href="#">API</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md" href="#">Status</a>
+</nav>
+<div class="h-6 w-px bg-white/10"></div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer active:opacity-80 transition-all" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer active:opacity-80 transition-all" data-icon="help">help</button>
+<div class="w-8 h-8 rounded-full bg-primary-fixed/20 border border-white/10 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A sophisticated corporate headshot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDm5g0IvgVX90aIdpSUXjrsTwSeDAUfMS2x9ht7NsHM2W7EvMHA13iv1Z3nH0Z3L9viiBGToeW3vKaKe9DteZbo7UuSGq-EDxcWzcvc5SOFriPVHKKykSkuGvJ445YpzhaOscggx3X8lD-arG40JReHBLKQtxJIRP6bX6g5mHXGRQwF20WgXYbr5pxJvEdBGRZbsaCKx_jgFUMjpo2FYdIMgcXfTqJX55XjyYQkcJW5OkFRSzIFIF5PeCLE99cAR2oKgzwmPN7SYB9g"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 mt-16 p-8 min-h-screen animate-entrance">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-10">
+<div>
+<h2 class="font-display text-headline-lg text-primary mb-2">Face Gallery</h2>
+<p class="font-body-md text-on-surface-variant max-w-2xl">Manage and verify captured biometric data. Aegis AI utilizes multi-point structural analysis to identify subjects with 99.8% precision across diverse lighting conditions.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10 font-label-md hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span>
+                Refine
+            </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-fixed text-on-primary-fixed font-bold font-label-md hover:opacity-90 transition-all inner-glow">
+<span class="material-symbols-outlined text-[18px]" data-icon="sync">sync</span>
+                Re-scan All
+            </button>
+</div>
+</div>
+<!-- Gallery Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+<!-- Card 1 (Verified) -->
+<div class="glass-card rounded-2xl overflow-hidden group cursor-pointer" onclick="openModal('Julian Vance', 'Verified', '98.4%', 'ID-00482', 'Cam-04 West Lobby')">
+<div class="relative aspect-square overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100" data-alt="A tight biometric crop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_nH5UCfUCnVQRunQShxKMS8IY5KejRbAOEvOtrJdyVsU1T7YO3MLBcg8KYdnAhlV-nUMv-WEUgyZItXE7LW8LC43YmqyWJZBYEKJqdUP5ZOHitm88_CRoYPMLpExJHqUCwUIcpqW1BnKK65ORwig991Vi2FHsQhDmaXPEco000x3kBI_ZjeY-D3cOwA5RURkqdHY5PcPRe7lMlW2vmRVZ11nAXXro1xFJvuz4YSETK_OPEGhgE5aNgX8BYm_glWPBkZBo7HVR6fCR"/>
+<div class="absolute top-3 right-3 flex gap-2">
+<span class="bg-tertiary-container/10 backdrop-blur-md text-tertiary-fixed-dim text-[10px] px-2 py-1 rounded border border-tertiary-fixed-dim/20 flex items-center gap-1">
+<span class="w-1.5 h-1.5 bg-tertiary-fixed-dim rounded-full pulse-dot"></span>
+                        Verified
+                    </span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[10px] text-primary-fixed-dim uppercase tracking-wider font-bold">Subject</p>
+<p class="font-display text-headline-md text-primary">Julian Vance</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-primary-fixed-dim uppercase tracking-wider font-bold">Confidence</p>
+<p class="font-display text-headline-md text-primary">98.4%</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-white/5 flex justify-between items-center bg-surface-container-lowest/50">
+<div class="flex flex-col">
+<span class="text-label-sm text-on-surface-variant opacity-60">Last Seen</span>
+<span class="text-label-md">2m ago • Cam-04</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant opacity-40 group-hover:opacity-100" data-icon="arrow_forward">arrow_forward</span>
+</div>
+</div>
+<!-- Card 2 (Unrecognized) -->
+<div class="glass-card rounded-2xl overflow-hidden group cursor-pointer" onclick="openModal('Unknown-8492', 'Unrecognized', '42.1%', 'UID-NEW', 'Cam-12 Entry A')">
+<div class="relative aspect-square overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100" data-alt="A grainy biometric capture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOq32ul5BdI0viZOv7hiu1KVjBRDvYP3rR5LU7kkZ7nSoHe2EesU1Sc6-3UTpQ50QpQHWFqYl1CS3uqGkRGEHPbVYj2X0O4_voj5xgJ9eBHGHCXisOEPO8Izt9F0vhuUU45ZQyykGWF4Gy1UmZnrBgJWc36aMWoTh2UlpyYRpUqs25TLA9QiTLn1F2ZNgXqwS1mdiN--Sjm5SCeehOPn7KRSJPGGtO8bvfdhQYxXFqU9YTKzLGtjfjMZ354yGouqZqzMxkjnM8Bsgz"/>
+<div class="absolute top-3 right-3 flex gap-2">
+<span class="bg-error-container/10 backdrop-blur-md text-error text-[10px] px-2 py-1 rounded border border-error/20 flex items-center gap-1">
+<span class="w-1.5 h-1.5 bg-error rounded-full"></span>
+                        Unrecognized
+                    </span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[10px] text-error uppercase tracking-wider font-bold">Subject</p>
+<p class="font-display text-headline-md text-primary">Unknown-8492</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-error uppercase tracking-wider font-bold">Confidence</p>
+<p class="font-display text-headline-md text-primary">42.1%</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-white/5 flex justify-between items-center bg-surface-container-lowest/50">
+<div class="flex flex-col">
+<span class="text-label-sm text-on-surface-variant opacity-60">Last Seen</span>
+<span class="text-label-md">15m ago • Cam-12</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant opacity-40 group-hover:opacity-100" data-icon="warning">warning</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="glass-card rounded-2xl overflow-hidden group cursor-pointer" onclick="openModal('Sarah Jenkins', 'Verified', '99.9%', 'ID-00912', 'Main Entrance')">
+<div class="relative aspect-square overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100" data-alt="A crisp biometric scan" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0cpWUoEY3cD3Q5qFnr0AFp5K6Ru4WoPgutRiiH4MjaAx1pUaW0BMluBKmGltdK_xp3k6sTwBm3dwwffO0c0iDmBZ6PLEP9hn1dyl7o5KENwtWpYKts5S205IGTU2OVC3whjLmsdg_cDP0osOUQvbul6lLFW3V5lsChsYzME-YRK-8F0H8jDL3bcrMHXbgjl6irLmHDpTf3UlLcX7g63S7Htnt_9aQCyg-oKfYDmLiQArmJJVVwsj38MIVmzaW-KiXAiwizmlgIwzi"/>
+<div class="absolute top-3 right-3 flex gap-2">
+<span class="bg-tertiary-container/10 backdrop-blur-md text-tertiary-fixed-dim text-[10px] px-2 py-1 rounded border border-tertiary-fixed-dim/20 flex items-center gap-1">
+<span class="w-1.5 h-1.5 bg-tertiary-fixed-dim rounded-full pulse-dot"></span>
+                        Verified
+                    </span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-[10px] text-primary-fixed-dim uppercase tracking-wider font-bold">Subject</p>
+<p class="font-display text-headline-md text-primary">Sarah Jenkins</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-primary-fixed-dim uppercase tracking-wider font-bold">Confidence</p>
+<p class="font-display text-headline-md text-primary">99.9%</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-white/5 flex justify-between items-center bg-surface-container-lowest/50">
+<div class="flex flex-col">
+<span class="text-label-sm text-on-surface-variant opacity-60">Last Seen</span>
+<span class="text-label-md">1h ago • Front</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant opacity-40" data-icon="more_vert">more_vert</span>
+</div>
+</div>
+<!-- Card Placeholder -->
+<div class="glass-card rounded-2xl overflow-hidden group opacity-80 hover:opacity-100">
+<div class="relative aspect-square overflow-hidden bg-surface-container flex items-center justify-center border-b border-white/5">
+<span class="material-symbols-outlined text-[48px] text-white/5" data-icon="face">face</span>
+<div class="absolute top-3 right-3">
+<span class="bg-white/5 backdrop-blur-md text-on-surface-variant text-[10px] px-2 py-1 rounded border border-white/10 flex items-center gap-1">Processing...</span>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest/50">
+<div class="h-4 w-2/3 bg-white/5 rounded animate-pulse mb-2"></div>
+<div class="h-3 w-1/3 bg-white/5 rounded animate-pulse"></div>
+</div>
+</div>
+<!-- Extra dynamic cards -->
+<script>
+            const names = ['Elias Thorne', 'Maya Patel', 'Dr. Aris Varma', 'Unknown-922', 'Clarissa Low'];
+            const status = ['Verified', 'Verified', 'Verified', 'Unrecognized', 'Verified'];
+            const confidence = ['96.2%', '99.1%', '97.5%', '38.0%', '98.9%'];
+            const gallery = document.querySelector('.grid');
+            
+            for(let i=0; i<6; i++){
+                const name = names[i % names.length];
+                const stat = status[i % status.length];
+                const conf = confidence[i % confidence.length];
+                const isVerified = stat === 'Verified';
+                
+                const card = `
+                <div class="glass-card rounded-2xl overflow-hidden group cursor-pointer" onclick="openModal('${name}', '${stat}', '${conf}', 'ID-992${i}', 'Zone B')">
+                    <div class="relative aspect-square overflow-hidden bg-surface-container">
+                        <div class="w-full h-full bg-cover bg-center grayscale group-hover:grayscale-0 transition-all duration-500" 
+                             style="background-image: url('placeholder')" 
+                             data-alt="Biometric portrait"></div>
+                        <div class="absolute top-3 right-3 flex gap-2">
+                            <span class="${isVerified ? 'bg-tertiary-container/10 text-tertiary-fixed-dim border-tertiary-fixed-dim/20' : 'bg-error-container/10 text-error border-error/20'} backdrop-blur-md text-[10px] px-2 py-1 rounded border flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 ${isVerified ? 'bg-tertiary-fixed-dim pulse-dot' : 'bg-error'} rounded-full"></span>
+                                ${stat}
+                            </span>
+                        </div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                            <div class="flex justify-between items-end">
+                                <div>
+                                    <p class="text-[10px] ${isVerified ? 'text-primary-fixed-dim' : 'text-error'} uppercase tracking-wider font-bold">Subject</p>
+                                    <p class="font-display text-headline-md text-primary">${name}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[10px] ${isVerified ? 'text-primary-fixed-dim' : 'text-error'} uppercase tracking-wider font-bold">Confidence</p>
+                                    <p class="font-display text-headline-md text-primary">${conf}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 border-t border-white/5 flex justify-between items-center bg-surface-container-lowest/50">
+                        <div class="flex flex-col">
+                            <span class="text-label-sm text-on-surface-variant opacity-60">Last Seen</span>
+                            <span class="text-label-md">${i+5}m ago • Zone B</span>
+                        </div>
+                        <span class="material-symbols-outlined text-on-surface-variant opacity-40" data-icon="more_vert">more_vert</span>
+                    </div>
+                </div>`;
+                gallery.insertAdjacentHTML('beforeend', card);
+            }
+        </script>
+</div>
+</main>
+<!-- Modal -->
+<div class="fixed inset-0 z-[100] modal-overlay hidden flex items-center justify-center p-6 opacity-0 transition-opacity duration-300" id="detailModal">
+<div class="glass-card w-full max-w-4xl max-h-[819px] rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-[0_32px_64px_rgba(0,0,0,0.8)] border border-white/10 scale-95 transition-transform duration-300" id="modalContent">
+<div class="md:w-2/5 relative bg-surface-container-lowest">
+<img class="w-full h-full object-cover" data-alt="Biometric extreme close-up" id="modalImg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHKhsNWhej6xrfM4zX1gWhXdQ1hM-K5Gg40fuLI-_3ApP22_sskz5daj1PM4EAKqDO8O_nQGarIGku1wrBx_cuugN6JYE-wm48ndTt3FHwhIknEMoEx6tJDD-9bQTq07idJyemLaTd6joAx4DgfDDPfdq5yuqW9cmwEu7cqrbLU5iXSV_5avw_d6CjTMM4i8QF567Bvtfi-QgyTqLCJZo5aEVUnrf6gsWnCRwhS8Xxm7r0ypAtKTVL0CXG8H8VBd1zW0f6Lt_CBVWA"/>
+<div class="absolute inset-0 bg-gradient-to-r from-transparent to-[#121212] md:block hidden"></div>
+<div class="absolute bottom-6 left-6 right-6 p-4 rounded-xl bg-black/60 backdrop-blur-xl border border-white/10">
+<p class="text-[10px] text-primary-fixed-dim uppercase font-bold mb-1">Raw Capture Meta</p>
+<div class="flex justify-between">
+<span class="text-label-sm text-on-surface-variant">Resolution</span>
+<span class="text-label-sm text-primary">4K Digital</span>
+</div>
+<div class="flex justify-between">
+<span class="text-label-sm text-on-surface-variant">Focus Depth</span>
+<span class="text-label-sm text-primary">0.82m</span>
+</div>
+</div>
+</div>
+<div class="md:w-3/5 p-8 flex flex-col">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="font-display text-display text-primary leading-tight" id="modalName">Name Placeholder</h3>
+<div class="flex gap-2 mt-2">
+<span class="text-label-sm px-2 py-1 rounded border" id="modalStatus">Status</span>
+<span class="text-label-sm px-2 py-1 rounded bg-white/5 border border-white/10 text-on-surface-variant" id="modalConf">Conf: 90%</span>
+</div>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-full transition-all" data-icon="close" onclick="closeModal()">close</button>
+</div>
+<div class="grid grid-cols-2 gap-6 mb-8">
+<div class="p-4 rounded-2xl bg-white/5 border border-white/5">
+<p class="text-label-sm text-on-surface-variant mb-1">Unique Identifier</p>
+<p class="font-headline-md text-primary" id="modalId">ID-0000</p>
+</div>
+<div class="p-4 rounded-2xl bg-white/5 border border-white/5">
+<p class="text-label-sm text-on-surface-variant mb-1">Source Camera</p>
+<p class="font-headline-md text-primary" id="modalSource">Camera-0</p>
+</div>
+</div>
+<div class="space-y-4 flex-1">
+<h4 class="font-label-sm text-primary-fixed-dim uppercase">Recent Activities</h4>
+<div class="space-y-3">
+<div class="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-primary-fixed-dim" data-icon="location_on">location_on</span>
+<div class="flex-1">
+<p class="text-label-md text-on-surface">Entered Secure Zone 4</p>
+<p class="text-[11px] text-on-surface-variant opacity-60">Today at 10:42 AM</p>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-primary-fixed-dim" data-icon="badge">badge</span>
+<div class="flex-1">
+<p class="text-label-md text-on-surface">ID Credentials Validated</p>
+<p class="text-[11px] text-on-surface-variant opacity-60">Today at 09:15 AM</p>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-4 mt-8 pt-6 border-t border-white/5">
+<button class="flex-1 py-3 bg-primary-fixed text-on-primary-fixed font-bold rounded-xl active:scale-95 transition-transform inner-glow">Edit Metadata</button>
+<button class="px-4 py-3 bg-error/10 text-error border border-error/20 font-bold rounded-xl active:scale-95 transition-transform">Report Anomaly</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+    function openModal(name, status, conf, id, source) {
+        const modal = document.getElementById('detailModal');
+        const content = document.getElementById('modalContent');
+        
+        document.getElementById('modalName').textContent = name;
+        document.getElementById('modalConf').textContent = `Conf: ${conf}`;
+        document.getElementById('modalId').textContent = id;
+        document.getElementById('modalSource').textContent = source;
+        
+        const statusEl = document.getElementById('modalStatus');
+        statusEl.textContent = status;
+        if (status === 'Verified') {
+            statusEl.className = 'text-label-sm px-2 py-1 rounded border border-tertiary-fixed-dim/20 text-tertiary-fixed-dim bg-tertiary-fixed-dim/10';
+        } else {
+            statusEl.className = 'text-label-sm px-2 py-1 rounded border border-error/20 text-error bg-error/10';
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+        }, 10);
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('detailModal');
+        const content = document.getElementById('modalContent');
+        
+        modal.classList.add('opacity-0');
+        content.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }, 300);
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeModal();
+    });
+
+    const searchInput = document.querySelector('input[type="text"]');
+    if (searchInput) {
+        searchInput.addEventListener('focus', () => {
+            searchInput.parentElement.classList.add('border-primary-fixed', 'shadow-[0_0_15px_rgba(228,228,204,0.1)]');
+            searchInput.parentElement.classList.remove('border-white/5');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.parentElement.classList.remove('border-primary-fixed', 'shadow-[0_0_15px_rgba(228,228,204,0.1)]');
+            searchInput.parentElement.classList.add('border-white/5');
+        });
+    }
+</script>
+</body></html>

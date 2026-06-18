@@ -56,6 +56,45 @@ class S3Service {
       throw error;
     }
   }
+
+  /**
+   * Generates a pre-signed URL for an existing S3 URL if S3 is configured.
+   * If S3 is not configured or the URL is not a valid S3 URL, returns the original URL.
+   */
+  async getPresignedUrl(s3Url, expiresIn = 3600) {
+    if (!this.isAvailable || !s3Url || typeof s3Url !== 'string') {
+      return s3Url;
+    }
+
+    try {
+      if (!s3Url.includes("amazonaws.com") && !s3Url.includes(this.bucketName)) {
+        return s3Url;
+      }
+
+      const { GetObjectCommand } = require("@aws-sdk/client-s3");
+      const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+
+      const urlObj = new URL(s3Url);
+      let bucket = this.bucketName;
+      let s3Key = decodeURIComponent(urlObj.pathname.slice(1));
+
+      const hostParts = urlObj.hostname.split(".");
+      if (hostParts.length > 2 && hostParts[1] === "s3") {
+        bucket = hostParts[0];
+      }
+
+      const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: s3Key,
+      });
+
+      const signedUrl = await getSignedUrl(this.s3, command, { expiresIn });
+      return signedUrl;
+    } catch (error) {
+      console.error("[S3Service] Failed to generate pre-signed URL for:", s3Url, error.message);
+      return s3Url;
+    }
+  }
 }
 
 module.exports = new S3Service();

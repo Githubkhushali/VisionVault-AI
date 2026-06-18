@@ -3,8 +3,22 @@ const sessionService = require('../services/SessionService');
 class HistoryController {
   async getHistory(req, res) {
     try {
-      // Expose a separate /api/history endpoint that queries the database for all past sessions
+      const s3Service = require('../services/S3Service');
       const history = await sessionService.getAllHistory();
+      
+      for (const s of history) {
+        if (s.s3Url) {
+          s.s3Url = await s3Service.getPresignedUrl(s.s3Url);
+        }
+        if (s.people && s.people.length > 0) {
+          for (const p of s.people) {
+            if (p.s3CropUrl) {
+              p.s3CropUrl = await s3Service.getPresignedUrl(p.s3CropUrl);
+            }
+          }
+        }
+      }
+      
       res.status(200).json({ sessions: history });
     } catch (error) {
       console.error("[HistoryController] Failed to fetch history:", error);

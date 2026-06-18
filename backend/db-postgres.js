@@ -179,6 +179,69 @@ const initDb = async () => {
     await query.run(`ALTER TABLE identities ADD COLUMN IF NOT EXISTS embedding_quality NUMERIC(8,4);`);
     await query.run(`ALTER TABLE identities ADD COLUMN IF NOT EXISTS s3_person_folder TEXT;`);
 
+    // 10. Users table for authentication
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role VARCHAR(50) DEFAULT 'VIEWER',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP
+      );
+    `);
+
+    // 11. Login Sessions table
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS login_sessions (
+        id VARCHAR(100) PRIMARY KEY,
+        user_id VARCHAR(100) REFERENCES users(id) ON DELETE CASCADE,
+        device TEXT,
+        ip_address VARCHAR(50),
+        login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 12. Notifications table
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR(100) PRIMARY KEY,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        severity VARCHAR(20) DEFAULT 'INFO',
+        read_status BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 13. Settings table
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id VARCHAR(50) PRIMARY KEY,
+        email_notifications BOOLEAN DEFAULT FALSE,
+        sms_notifications BOOLEAN DEFAULT FALSE,
+        phone_number VARCHAR(50),
+        country_code VARCHAR(10),
+        detection_threshold NUMERIC(5,2) DEFAULT 0.65,
+        aws_region VARCHAR(100),
+        aws_bucket VARCHAR(255)
+      );
+    `);
+
+    // Initialize default admin if no users exist
+    const { rows } = await pool.query('SELECT COUNT(*) FROM users');
+    if (parseInt(rows[0].count) === 0) {
+      const bcrypt = require('bcrypt');
+      const defaultHash = await bcrypt.hash('admin123', 10);
+      await query.run(
+        'INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)',
+        ['user_default_admin', 'System Administrator', 'admin@visionvault.local', defaultHash, 'ADMIN']
+      );
+      console.log("[Database] Default ADMIN user created (admin@visionvault.local / admin123)");
+    }
+
     console.log("[Database] Connected successfully to PostgreSQL database. All tables verified.");
   } catch (err) {
     console.error("[Database] PostgreSQL tables initialization failed:", err.message);

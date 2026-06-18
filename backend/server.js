@@ -6,6 +6,8 @@ const fs = require("fs");
 const path = require("path");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const db = require("./db-postgres");
+const notificationService = require("./services/notificationService");
+const emailService = require("./services/emailService");
 
 // ── App Setup ─────────────────────────────────────────────────
 const app = express();
@@ -17,8 +19,19 @@ app.use(express.json());
 // ── Mount Modular Routes ──────────────────────────────────────
 const liveStreamRoutes = require('./routes/liveStream');
 const historyRoutes = require('./routes/history');
+const authRoutes = require('./routes/auth');
+const usersRoutes = require('./routes/users');
+const notificationsRoutes = require('./routes/notifications');
+const settingsRoutes = require('./routes/settings');
+const smsRoutes = require('./routes/sms');
+
 app.use('/api', liveStreamRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/send-sms', smsRoutes);
 
 
 // ── Live Stream Memory Logs (Moved to LiveStreamService) ────────
@@ -220,6 +233,25 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
 
         if (identityId) {
           recordFaceAppearance(identityId, s3CropUrl || imageS3Url);
+          
+          // Check for UNKNOWN_PERSON if cosine distance/confidence implies unknown
+          // or if identityId falls under unknown prefix (depending on AI service mapping).
+          // We assume identityId is 'Unknown' or similar if not found, or conf < threshold
+          const threshold = 0.65; // This could come from Settings later
+          const isUnknown = faceConf < threshold || identityId.includes('Unknown') || legacyId.includes('fallback');
+          
+          if (isUnknown) {
+            notificationService.createNotification(
+              'UNKNOWN_PERSON', 
+              'Unknown Person Detected (Image)', 
+              `An unknown person was detected in uploaded image: ${fileName}`, 
+              'HIGH'
+            );
+            // Send SES email
+            if (emailService) {
+              emailService.sendUnknownPersonAlert(s3CropUrl || imageS3Url);
+            }
+          }
         }
 
         await db.run(
@@ -284,6 +316,13 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
         );
       }
     }
+
+    notificationService.createNotification(
+      'UPLOAD_COMPLETE',
+      'Image Analysis Complete',
+      `Processed image ${fileName}. Found ${yoloResult.personCount} people and ${facesDetected} faces.`,
+      'INFO'
+    );
 
     return res.status(200).json({
       success: true,
@@ -393,6 +432,20 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
               facesRecognized.push(identityId);
             }
           }
+          
+          const threshold = 0.65;
+          const isUnknown = avgConf < threshold || identityId.includes('Unknown') || identityId.includes('fallback');
+          if (isUnknown) {
+            notificationService.createNotification(
+              'UNKNOWN_PERSON', 
+              'Unknown Person Detected (Video)', 
+              `An unknown person was detected in uploaded video: ${req.file.originalname}`, 
+              'HIGH'
+            );
+            if (emailService && s3CropUrl) {
+              emailService.sendUnknownPersonAlert(s3CropUrl);
+            }
+          }
         }
       }
     }
@@ -401,6 +454,13 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
     await db.run(
       `INSERT INTO video_history (id, video_filename, frames_analyzed, humans_detected, faces_registered, faces_recognized) VALUES (?, ?, ?, ?, ?, ?)`,
       [sessionId, req.file.originalname, totalFrames, personCount, facesRegistered.length, facesRecognized.length]
+    );
+
+    notificationService.createNotification(
+      'UPLOAD_COMPLETE',
+      'Video Analysis Complete',
+      `Processed video ${req.file.originalname}. Found ${personCount} unique people.`,
+      'INFO'
     );
 
     return res.status(200).json({

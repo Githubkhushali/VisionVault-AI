@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>User Management - Aegis AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-fixed": "#0f1f16",
+                      "primary-fixed-dim": "#c8c8b0",
+                      "tertiary": "#ffffff",
+                      "primary-container": "#e4e4cc",
+                      "secondary-container": "#464858",
+                      "on-primary-fixed": "#1b1d0e",
+                      "secondary-fixed-dim": "#c5c5d8",
+                      "inverse-on-surface": "#313030",
+                      "surface-dim": "#131313",
+                      "surface-container-high": "#2a2a2a",
+                      "on-tertiary-container": "#58685e",
+                      "on-error": "#690005",
+                      "surface": "#131313",
+                      "primary": "#ffffff",
+                      "tertiary-container": "#d5e7da",
+                      "on-primary-fixed-variant": "#474836",
+                      "on-tertiary": "#24342b",
+                      "secondary-fixed": "#e1e1f5",
+                      "secondary": "#c5c5d8",
+                      "on-secondary-container": "#b6b7ca",
+                      "error": "#ffb4ab",
+                      "surface-tint": "#c8c8b0",
+                      "on-tertiary-fixed-variant": "#3a4a41",
+                      "inverse-primary": "#5e604d",
+                      "tertiary-fixed": "#d5e7da",
+                      "on-secondary-fixed": "#191b29",
+                      "primary-fixed": "#e4e4cc",
+                      "outline-variant": "#47473f",
+                      "on-secondary-fixed-variant": "#444655",
+                      "on-error-container": "#ffdad6",
+                      "on-surface": "#e5e2e1",
+                      "surface-container-highest": "#353534",
+                      "surface-variant": "#353534",
+                      "error-container": "#93000a",
+                      "inverse-surface": "#e5e2e1",
+                      "surface-container-low": "#1c1b1b",
+                      "surface-container": "#201f1f",
+                      "outline": "#929187",
+                      "surface-container-lowest": "#0e0e0e",
+                      "tertiary-fixed-dim": "#b9cbbe",
+                      "surface-bright": "#3a3939",
+                      "on-background": "#e5e2e1",
+                      "background": "#131313",
+                      "on-surface-variant": "#c8c7bc",
+                      "on-primary-container": "#646652",
+                      "on-primary": "#303221",
+                      "on-secondary": "#2e2f3e"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xl": "40px",
+                      "gutter": "24px",
+                      "lg": "24px",
+                      "2xl": "64px",
+                      "md": "16px",
+                      "sm": "8px",
+                      "margin": "32px",
+                      "base": "4px",
+                      "xs": "4px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "label-sm": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "display": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-md": [
+                              "15px",
+                              {
+                                      "lineHeight": "1.5",
+                                      "letterSpacing": "0",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "letterSpacing": "0",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-sm": [
+                              "11px",
+                              {
+                                      "lineHeight": "1",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "13px",
+                              {
+                                      "lineHeight": "1",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "display": [
+                              "48px",
+                              {
+                                      "lineHeight": "1.1",
+                                      "letterSpacing": "-0.03em",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body { background-color: #0B0B0B; color: #e5e2e1; }
+        .glass-panel {
+            background: rgba(18, 18, 18, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        .btn-primary {
+            background-color: #F5F5DC;
+            color: #0B0B0B;
+            transition: opacity 0.2s;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            transition: border-color 0.2s;
+        }
+        .btn-secondary:hover { border-color: rgba(255, 255, 255, 0.3); }
+        .table-row-glass {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            transition: background-color 0.2s;
+        }
+        .table-row-glass:hover {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md antialiased min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="bg-surface/70 backdrop-blur-xl font-body-md text-body-md h-screen w-64 fixed left-0 top-0 border-r border-white/10 shadow-2xl flex flex-col h-full py-6 z-50">
+<div class="px-6 mb-8 flex items-center gap-3">
+<img class="w-8 h-8 rounded-lg object-cover" data-alt="A highly detailed 3D render of a futuristic security shield logo. The shield is constructed from dark obsidian with glowing icy blue circuit traces running through it. The lighting is dramatic and cinematic, emphasizing the premium and secure nature of the Aegis AI brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAq4-IkCczO2HBfbvelt46D43izMoxVztKGlTN7e4W-gZZTuVzwmSWjDUr-2eA5-Ht8a2bHX8a7FJLuzyWS2JJlgwS5wQLbRVcCy8xLEZooEwGUlBBcitRWE0RG2tyA1faRehDyuIajps8sn-QY_K12ig4DGyyldtOEtaaj_x-Ts1J1xYUWRj2hd5zfolgTpYWgyMDIjkeQLWc5BjKlm0deTUMHN3nVt88loIczZo6UfAFDJLYuFDdBFqcThzVS38w7aMstcb0hpfAc"/>
+<div>
+<h1 class="font-display text-headline-md font-bold text-primary">Aegis AI</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mt-1">Enterprise Detection</p>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto">
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">dashboard</span>
+                        Dashboard
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">cloud_upload</span>
+                        Upload
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">history</span>
+                        History
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">face</span>
+                        Face Gallery
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">live_tv</span>
+                        Live Stream
+                    </a>
+</li>
+</ul>
+</div>
+<div class="px-4 mt-auto space-y-4">
+<ul>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-primary-fixed bg-primary-fixed/10 border-l-4 border-primary-fixed hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+                        Settings
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary-fixed transition-colors hover:bg-white/5 transition-all duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">help_outline</span>
+                        Support
+                    </a>
+</li>
+</ul>
+<div class="px-4 pb-4">
+<button class="w-full btn-primary font-label-md text-label-md py-2 rounded-lg font-bold">Upgrade to Pro</button>
+</div>
+</div>
+</nav>
+<!-- TopNavBar -->
+<header class="bg-surface/70 backdrop-blur-xl font-label-md text-label-md fixed top-0 right-0 h-16 z-40 border-b border-white/10 shadow-sm flex justify-between items-center w-[calc(100%-16rem)] ml-64 px-8">
+<div class="flex items-center gap-6">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="bg-[#0B0B0B] border border-white/10 rounded-full py-1.5 pl-9 pr-4 text-primary focus:outline-none focus:border-[#F5F5DC] focus:ring-1 focus:ring-[#F5F5DC]/50 transition-all text-sm w-64" placeholder="Search users, IPs..." type="text"/>
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-80" href="#">Docs</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-80" href="#">API</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-80" href="#">Status</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">help</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-white/10 overflow-hidden cursor-pointer">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a corporate security officer, soft rim lighting, dark studio background, wearing a sleek black turtleneck, exuding confidence and quiet authority." src="https://lh3.googleusercontent.com/aida-public/AB6AXuASdv0slI9DzwEhwX6K3nCEu7OoUJBa-75vR6bORdlcGIMe6_IS9mVYQXcZ1jfPqhmxEjZKHQuuxWAATAgR36M2nhhf8O9zEO-1rK8Hsex4B438oeoNfcyFW-K2CczHeehGcnB3FpGaSEHKUFCeB0XvlSQXNdfMTc87sS7LSwF30v1P82gzITEqo4xWCWqm0KnzYpdxxnMpRypquaSSYIT4O1SpayUt458iSfQ5sIRujoqWl8YnReFfOUzuA1e9whGLy4xAg-FtTYH4"/>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 mt-16 p-margin w-full flex-1">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-xl">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-primary mb-2">User Management</h2>
+<p class="text-on-surface-variant">Manage enterprise access controls, roles, and active sessions.</p>
+</div>
+<button class="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined text-[18px]">person_add</span>
+                Add User
+            </button>
+</div>
+<!-- Data Table Card -->
+<div class="glass-panel rounded-xl overflow-hidden">
+<!-- Table Header -->
+<div class="grid grid-cols-12 gap-4 px-lg py-4 border-b border-white/10 bg-surface-container/50 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider sticky top-0 backdrop-blur-md z-10">
+<div class="col-span-3">User</div>
+<div class="col-span-2">Role</div>
+<div class="col-span-2">Last Login</div>
+<div class="col-span-2">IP &amp; Device</div>
+<div class="col-span-2">Session</div>
+<div class="col-span-1 text-right">Actions</div>
+</div>
+<!-- Table Body -->
+<div class="flex flex-col">
+<!-- Row 1 -->
+<div class="grid grid-cols-12 gap-4 px-lg py-4 table-row-glass items-center">
+<div class="col-span-3 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container border border-white/10 flex items-center justify-center text-primary font-bold">
+                            JD
+                        </div>
+<div>
+<div class="text-primary font-medium">John Doe</div>
+<div class="text-on-surface-variant text-sm">john.doe@aegis.ai</div>
+</div>
+</div>
+<div class="col-span-2">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-[#F5F5DC]/10 text-[#F5F5DC] border border-[#F5F5DC]/20">
+                            Admin
+                        </span>
+</div>
+<div class="col-span-2 text-on-surface-variant text-sm">
+                        Today, 09:41 AM
+                    </div>
+<div class="col-span-2 text-sm">
+<div class="text-primary">192.168.1.105</div>
+<div class="text-on-surface-variant">MacBook Pro</div>
+</div>
+<div class="col-span-2 flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-[#BCCEC1] pulse-dot"></div>
+<span class="text-[#BCCEC1] text-sm">Active</span>
+</div>
+<div class="col-span-1 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="grid grid-cols-12 gap-4 px-lg py-4 table-row-glass items-center">
+<div class="col-span-3 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container border border-white/10 flex items-center justify-center text-primary font-bold">
+                            AS
+                        </div>
+<div>
+<div class="text-primary font-medium">Alice Smith</div>
+<div class="text-on-surface-variant text-sm">alice.s@aegis.ai</div>
+</div>
+</div>
+<div class="col-span-2">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                            Security Officer
+                        </span>
+</div>
+<div class="col-span-2 text-on-surface-variant text-sm">
+                        Yesterday, 14:22 PM
+                    </div>
+<div class="col-span-2 text-sm">
+<div class="text-primary">10.0.0.42</div>
+<div class="text-on-surface-variant">Windows Workstation</div>
+</div>
+<div class="col-span-2 flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-surface-variant"></div>
+<span class="text-on-surface-variant text-sm">Inactive</span>
+</div>
+<div class="col-span-1 text-right">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

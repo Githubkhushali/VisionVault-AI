@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aetheris AI | Central Command Access</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#D4AF37", // Gold
+                        "on-primary": "#050505",
+                        "background": "#050505", // Onyx
+                        "surface": "#0A0A0A",
+                        "on-surface": "#e5e2e1",
+                        "on-surface-variant": "#a1a19a",
+                        "outline": "#D4AF37",
+                        "secondary": "#D4AF37",
+                        "primary-fixed": "#D4AF37",
+                        "on-primary-fixed": "#050505",
+                        "surface-container": "#111111"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "40px",
+                        "2xl": "64px",
+                        "xs": "4px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "display": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "label-md": ["13px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                        "body-md": ["15px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #050505;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        .glass-card {
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 1);
+        }
+
+        .hud-corner {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-color: rgba(212, 175, 55, 0.5);
+        }
+
+        .hud-corner-tl { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; }
+        .hud-corner-tr { top: -1px; right: -1px; border-top-width: 2px; border-right-width: 2px; }
+        .hud-corner-bl { bottom: -1px; left: -1px; border-bottom-width: 2px; border-left-width: 2px; }
+        .hud-corner-br { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; }
+
+        .scanning-line {
+            position: absolute;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+            box-shadow: 0 0 10px #D4AF37;
+            z-index: 20;
+            animation: scan 6s ease-in-out infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            5% { opacity: 0.8; }
+            95% { opacity: 0.8; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        .background-visual {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBHYmNvZHuvB-vFbae1o7TwtWTNS773rlA4kt89ssaZvgXewxRVZ7v5rQembYScP618HAsCXvXN3iuqY9LValjjPzuEiNBXlBrsGMBCAS0m9_qAbZov13uHprwYbaunYSQsoUwyrdkZTs4ly7YjTJ9NDZVBKELpxv4mJrPN1cLNLbyj9y6GcOb6QBDrTwvO4jADi2icVypLrqRH95c8uOyiU8WX7omq1QqadnMZ6GIFAqgTYpCSXM6WrA3O2qMeEzdBJvyRXBaADQLi') no-repeat center center;
+            background-size: cover;
+            filter: grayscale(0.6) brightness(0.2) contrast(1.1);
+            opacity: 0.5;
+        }
+
+        .vignette-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, transparent 40%, #050505 100%);
+            z-index: 0;
+        }
+
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #D4AF37;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 8px #D4AF37;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.5; }
+        }
+
+        .custom-checkbox:checked {
+            background-color: #D4AF37;
+            border-color: #D4AF37;
+        }
+
+        .scan-overlay-text {
+            font-family: 'Inter', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: rgba(212, 175, 55, 0.6);
+        }
+
+        .input-gold-focus:focus {
+            border-color: #D4AF37;
+            box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.3);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center selection:bg-primary selection:text-on-primary">
+<div class="background-visual"></div>
+<div class="vignette-overlay"></div>
+<div class="scanning-line"></div>
+<!-- Top Navigation -->
+<header class="fixed top-0 w-full z-50">
+<nav class="flex justify-between items-center h-20 px-margin w-full max-w-full bg-black/60 backdrop-blur-md border-b border-primary/10">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-2xl">fingerprint</span>
+<span class="font-display text-headline-md tracking-tighter text-on-surface">Aetheris AI</span>
+</div>
+<div class="hidden md:flex gap-lg items-center">
+<div class="flex flex-col items-end mr-md">
+<span class="scan-overlay-text text-[9px]">SYSTEM: ACTIVE</span>
+<span class="scan-overlay-text text-[9px]">SEC_LEVEL: ALPHA</span>
+</div>
+<button class="border border-primary/30 text-primary px-lg py-sm rounded-lg font-label-md text-label-md hover:bg-primary hover:text-on-primary transition-all duration-300">
+                    TERMINAL_IO
+                </button>
+</div>
+</nav>
+</header>
+<!-- Main Content Area: Centered High Focus Layout -->
+<main class="relative flex-grow w-full flex items-center justify-center z-10 pt-20 px-margin">
+<section class="w-full max-w-[460px]">
+<div class="glass-card rounded-xl p-xl flex flex-col gap-lg relative">
+<!-- HUD Elements -->
+<div class="hud-corner hud-corner-tl"></div>
+<div class="hud-corner hud-corner-tr"></div>
+<div class="hud-corner hud-corner-bl"></div>
+<div class="hud-corner hud-corner-br"></div>
+<div class="absolute -top-6 left-0 right-0 flex justify-between px-sm">
+<span class="scan-overlay-text">ENTRY_PROTO_V4</span>
+<span class="scan-overlay-text">STATUS: PENDING</span>
+</div>
+<!-- Branding Header -->
+<div class="text-center flex flex-col items-center gap-sm">
+<div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center border border-primary/20 mb-sm">
+<span class="material-symbols-outlined text-primary text-3xl animate-pulse">shield</span>
+</div>
+<div class="space-y-1">
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tighter uppercase">Central Command Access</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-[0.2em] opacity-60">Verified Node Authentication</p>
+</div>
+</div>
+<!-- Login Form -->
+<form class="flex flex-col gap-md mt-md" onsubmit="return false">
+<div class="space-y-xs">
+<div class="flex justify-between items-center px-1">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest" for="email">Operator ID</label>
+<span class="scan-overlay-text text-[8px]">ID_FIELD_01</span>
+</div>
+<div class="relative group">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-primary/40 text-xl">account_circle</span>
+<input class="w-full bg-black/60 border border-primary/20 rounded-lg py-md pl-12 pr-md text-on-surface font-body-md placeholder:text-on-surface-variant/30 focus:outline-none input-gold-focus transition-all duration-300" id="email" placeholder="OPERATOR@COMMAND.CORE" type="email"/>
+</div>
+</div>
+<div class="space-y-xs">
+<div class="flex justify-between items-center px-1">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest" for="password">Encryption Key</label>
+<span class="scan-overlay-text text-[8px]">ID_FIELD_02</span>
+</div>
+<div class="relative group">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-primary/40 text-xl">lock</span>
+<input class="w-full bg-black/60 border border-primary/20 rounded-lg py-md pl-12 pr-md text-on-surface font-body-md placeholder:text-on-surface-variant/30 focus:outline-none input-gold-focus transition-all duration-300" id="password" placeholder="••••••••" type="password"/>
+</div>
+<div class="flex justify-end pt-1">
+<a class="font-label-sm text-label-sm text-primary/60 hover:text-primary transition-colors tracking-wide" href="#">OVERRIDE_LOCKOUT</a>
+</div>
+</div>
+<div class="flex items-center gap-sm px-1">
+<input class="custom-checkbox w-4 h-4 bg-black/60 border-primary/30 rounded focus:ring-0 transition-colors cursor-pointer" id="remember" type="checkbox"/>
+<label class="font-label-md text-label-md text-on-surface-variant/80 cursor-pointer" for="remember">Persistent authorization</label>
+</div>
+<button class="w-full py-md rounded-lg font-headline-md text-label-md bg-primary text-on-primary hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] transition-all duration-300 transform active:scale-[0.98] mt-sm flex items-center justify-center gap-sm uppercase tracking-widest">
+<span class="material-symbols-outlined text-xl">verified_user</span>
+                        Authorize Entry
+                    </button>
+</form>
+<!-- Divider -->
+<div class="relative flex items-center py-base">
+<div class="flex-grow border-t border-primary/10"></div>
+<span class="flex-shrink mx-md font-label-sm text-label-sm text-on-surface-variant/40 tracking-widest uppercase">Federated Access</span>
+<div class="flex-grow border-t border-primary/10"></div>
+</div>
+<!-- SSO Actions -->
+<div class="grid grid-cols-2 gap-md">
+<button class="flex items-center justify-center gap-sm bg-white/5 border border-primary/10 py-sm rounded-lg hover:bg-white/10 hover:border-primary/30 transition-all active:scale-95">
+<img alt="Google" class="w-4 h-4 opacity-70 grayscale" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnLgVgmYpjikyaDCD5eByc1-csVYLTpwtuJvutlto8cctMOBQh_cngF3ijPvWnwjVvswLXabNAIfQQcpL94yecvx2T2dWJSWj1Jp54wpup1X6jifan9QvRwreR_Bq78lvtHJl4MLJ0TmClY7zs1px-nr1Rx_t_ADOS9fHuXDRJZTekzeljEt1shSo4Pp45UeS_zt6aByVTo9ylPJOnPbiWcmHBdNKPU8Byv2YNnmwbmpzPkJNaaPVruLoE0XvFKriD8rd2VhOATqne"/>
+<span class="font-label-md text-label-md text-on-surface">GOOGLE</span>
+</button>
+<button class="flex items-center justify-center gap-sm bg-white/5 border border-primary/10 py-sm rounded-lg hover:bg-white/10 hover:border-primary/30 transition-all active:scale-95">
+<img alt="GitHub" class="w-4 h-4 opacity-70 grayscale" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdUmp7gsF4_ZlodDcCxX598RYIZckaY2FIC55WHXA_SxNIoIJcp6tNMFVVX2qReJ6glMqbPYjHEHcatIVFGAXAWwqqpCEZM_9Bk45MyupB7X_2Z-IKhbfbYfTCLZOxSVuqNvBpxZjG8A1LNPR3llaPXWHOoGt7hVYEYLmppStbF5iIt2ipRbhMXqTsj02Cc9IxYhUtEyrD-ykLzx_8iCoNgCWcxY6DRZdp1dwZHZaxDRPA49MaSHKkM1vOBIKRGPViChywr5Qodh1E"/>
+<span class="font-label-md text-label-md text-on-surface">GITHUB</span>
+</button>
+</div>
+<div class="mt-base flex justify-center">
+<span class="scan-overlay-text text-[9px] animate-pulse text-primary/80">RECOGNITION SYSTEMS_READY</span>
+</div>
+</div>
+<!-- Footer Badge -->
+<div class="mt-lg flex justify-center items-center">
+<div class="px-md py-sm rounded-full bg-black/60 border border-primary/10 flex items-center gap-xs">
+<span class="pulse-dot"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Protocol: RSA-4096-AES-GCM</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-lg bg-black/80 backdrop-blur-md border-t border-primary/10 z-20">
+<div class="flex flex-col md:flex-row justify-between items-center px-margin space-y-md md:space-y-0">
+<div class="flex flex-col items-center md:items-start">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Neural Shield v4.2.1</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant/40">© 2024 Aetheris Enterprise Core.</span>
+</div>
+<div class="flex gap-lg">
+<a class="scan-overlay-text hover:text-primary transition-all" href="#">SYSTEM_TERMS</a>
+<a class="scan-overlay-text hover:text-primary transition-all" href="#">PRIVACY_DATA</a>
+<a class="scan-overlay-text hover:text-primary transition-all" href="#">NODE_STATUS</a>
+</div>
+</div>
+</footer>
+<script>
+        // Minimal interaction enhancements
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', () => {
+                const container = input.closest('.glass-card');
+                container.style.boxShadow = '0 0 60px rgba(212, 175, 55, 0.15)';
+            });
+            input.addEventListener('blur', () => {
+                const container = input.closest('.glass-card');
+                container.style.boxShadow = '0 0 50px rgba(0, 0, 0, 1)';
+            });
+        });
+    </script>
+</body></html>

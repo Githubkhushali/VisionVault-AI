@@ -1,20 +1,8 @@
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-} from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Camera, Users, UserCheck, UserX, LogIn, LogOut, Activity, History, Check, X, Play, Square, FileText, ChevronDown, Clock, Edit2 } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  FaceTrackingDashboard
-//  A high-performance face tracking & recognition dashboard with:
-//  - Live camera overlay with positioned bounding boxes + inline name labels
-//  - Strict session lifecycle: live → post-session summary → historical tabs
-//  - Fault-tolerant history editing (retroactive name correction)
-//  - Modular functional components with explicit hooks
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Utility: format timestamp ─────────────────────────────────────────────────
+// ── Utility: format timestamp
 const formatTime = (iso) => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -30,294 +18,360 @@ const formatTimestamp = (iso) => {
   });
 };
 
-// ── Deterministic hue from identityId string ─────────────────────────────────
 const idToHue = (id = '') => {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
   return Math.abs(hash) % 360;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Sub-component: CameraOverlay
-//  Renders the live webcam feed with absolute-positioned bounding boxes and
-//  inline per-face name input fields.
-// ─────────────────────────────────────────────────────────────────────────────
-const CameraOverlay = ({
-  webcamRef,
-  detectedFaces,
-  isLive,
-  containerRef,
-  faceLabelInputs,
-  onFaceLabelChange,
-  onFaceLabelSave,
-  nameFeedback,
-}) => {
+// ── Sub-component: StatCard
+const StatCard = ({ icon: Icon, label, value, colorClass }) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className={`bg-gray-900/60 backdrop-blur-md rounded-sm p-4 flex items-center gap-4 border border-white/5 border-l-4 ${colorClass} shadow-lg`}
+  >
+    <div className={`p-3 rounded-sm bg-gray-800/80 ${colorClass.replace('border-', 'text-')}`}>
+      <Icon size={24} />
+    </div>
+    <div>
+      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
+      <motion.p 
+        key={value}
+        initial={{ scale: 1.2, color: '#fff' }}
+        animate={{ scale: 1, color: '' }}
+        className="text-xl sm:text-2xl font-bold text-gray-100"
+      >
+        {value}
+      </motion.p>
+    </div>
+  </motion.div>
+);
+
+// ── Sub-component: CameraOverlay
+const CameraOverlay = ({ webcamRef, containerRef, detectedFaces, isLive, knownNames, faceLabelInputs, onFaceLabelChange, onFaceLabelSave, nameFeedback, handleStartSession }) => {
   return (
-    <div className="ftd-camera-wrapper" ref={containerRef}>
-      {/* Camera feed via react-webcam or a placeholder */}
+    <div className="relative w-full aspect-video rounded-sm overflow-hidden bg-gray-950/90 backdrop-blur-xl border border-white/10 shadow-2xl" ref={containerRef}>
       <video
         ref={webcamRef}
         autoPlay
         muted
         playsInline
-        className="ftd-video-feed"
+        className={`w-full h-full object-cover transition-opacity duration-700 ${isLive ? 'opacity-100' : 'opacity-0'}`}
       />
-
-      {/* Idle placeholder overlay */}
+      
       {!isLive && (
-        <div className="ftd-camera-placeholder">
-          <div className="ftd-camera-placeholder-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.361a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <p className="ftd-camera-placeholder-text">Camera feed will appear here</p>
-          <p className="ftd-camera-placeholder-sub">Click "Start Live Session" to begin tracking</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-900/80 backdrop-blur-sm z-30">
+          <Camera size={64} className="mb-4 opacity-50" />
+          <p className="text-2xl font-bold text-white mb-6">Camera Offline</p>
+           <button onClick={handleStartSession} className="bg-[#e3e3cb] hover:bg-[#d5d5b9] text-zinc-950 px-8 py-4 rounded-sm font-black text-xl flex items-center gap-3 shadow-lg shadow-[#e3e3cb]/20 transition-all hover:scale-105 active:scale-95 pointer-events-auto uppercase tracking-wider">
+            <Play fill="currentColor" size={24} /> Start Live Tracking
+          </button>
         </div>
       )}
 
-      {/* Scanning pulse when live */}
       {isLive && (
-        <div className="ftd-scan-line" />
-      )}
-
-      {/* Live indicator */}
-      {isLive && (
-        <div className="ftd-live-badge">
-          <span className="ftd-live-dot" />
-          LIVE
+        <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-sm bg-black/60 backdrop-blur-md border border-white/10 shadow-lg z-20">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-xs font-bold tracking-widest text-red-500 uppercase">Live</span>
         </div>
       )}
 
-      {/* ── Bounding boxes + inline labels ─────────────────────── */}
-      {isLive && detectedFaces.map((face, idx) => {
-        const hue = idToHue(face.identityId || String(idx));
-        const boxColor = `hsl(${hue}, 80%, 60%)`;
-        const resolvedName = face.name && face.name !== 'Unknown' ? face.name : null;
-        const feedback = nameFeedback[face.identityId] || null;
+      {/* Scanning overlay pulse */}
+      {isLive && detectedFaces.length === 0 && (
+         <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+            <motion.div 
+              animate={{ y: ['-10%', '110%'] }}
+              transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
+               className="w-full h-32 bg-gradient-to-b from-transparent via-[#e3e3cb]/10 to-transparent"
+            />
+         </div>
+      )}
 
-        // Bounding box coordinates as percentages of the video container
-        const { x = 0.2 + idx * 0.18, y = 0.15, w = 0.2, h = 0.35 } = face.bbox || {};
+      <AnimatePresence>
+        {isLive && detectedFaces.map((face, idx) => {
+          const resolvedName = knownNames[face.identityId] || face.name;
+          const isKnown = resolvedName && resolvedName !== 'Unknown';
+          const boxColorClass = isKnown ? 'border-emerald-500' : 'border-rose-500';
+          const bgColorClass = isKnown ? 'bg-emerald-500' : 'bg-rose-500';
+          const textColorClass = isKnown ? 'text-emerald-50' : 'text-rose-50';
+          const feedback = nameFeedback[face.identityId] || null;
+          
+          const { x = 0.2 + (idx * 0.1), y = 0.2, w = 0.2, h = 0.3 } = face.bbox || {};
 
-        return (
-          <div
-            key={face.identityId || idx}
-            className="ftd-face-bounding-box"
-            style={{
-              left: `${x * 100}%`,
-              top: `${y * 100}%`,
-              width: `${w * 100}%`,
-              height: `${h * 100}%`,
-              borderColor: boxColor,
-              boxShadow: `0 0 12px ${boxColor}44, inset 0 0 8px ${boxColor}11`,
-            }}
-          >
-            {/* Corner decorations */}
-            <span className="ftd-bbox-corner ftd-bbox-tl" style={{ borderColor: boxColor }} />
-            <span className="ftd-bbox-corner ftd-bbox-tr" style={{ borderColor: boxColor }} />
-            <span className="ftd-bbox-corner ftd-bbox-bl" style={{ borderColor: boxColor }} />
-            <span className="ftd-bbox-corner ftd-bbox-br" style={{ borderColor: boxColor }} />
-
-            {/* Face index badge */}
-            <span className="ftd-bbox-index" style={{ background: boxColor, color: '#0a0a0f' }}>
-              #{idx + 1}
-            </span>
-
-            {/* ── Inline label: attached to right edge of bounding box ── */}
-            <div
-              className="ftd-bbox-label-panel"
-              style={{ borderColor: `${boxColor}66`, '--box-color': boxColor }}
+          return (
+            <motion.div
+              key={face.identityId || idx}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className={`absolute border-2 ${boxColorClass} transition-all duration-200 ease-out z-20`}
+              style={{
+                left: `${x * 100}%`,
+                top: `${y * 100}%`,
+                width: `${w * 100}%`,
+                height: `${h * 100}%`,
+                boxShadow: isKnown ? '0 0 20px rgba(16, 185, 129, 0.2)' : '0 0 20px rgba(244, 63, 94, 0.2)',
+              }}
             >
-              {resolvedName ? (
-                // Known face: show name with edit button
-                <div className="ftd-bbox-label-known">
-                  <span
-                    className="ftd-bbox-name-dot"
-                    style={{ background: boxColor }}
-                  />
-                  <span className="ftd-bbox-known-name">{resolvedName}</span>
-                  <button
-                    className="ftd-bbox-edit-btn"
-                    onClick={() => onFaceLabelChange(face.identityId, resolvedName, true)}
-                    title="Edit name"
-                    aria-label={`Edit name for face ${idx + 1}`}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </button>
+              {/* Corner brackets */}
+              <div className={`absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 ${boxColorClass}`} />
+              <div className={`absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 ${boxColorClass}`} />
+              <div className={`absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 ${boxColorClass}`} />
+              <div className={`absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 ${boxColorClass}`} />
+
+              {/* Label above the box */}
+              <div className="absolute bottom-full mb-2 left-0 flex items-center gap-2 whitespace-nowrap">
+                <div className={`px-2.5 py-1.5 rounded-sm text-xs font-bold shadow-xl backdrop-blur-md flex items-center gap-1.5 ${bgColorClass} ${textColorClass}`}>
+                  {isKnown ? <UserCheck size={14} /> : <UserX size={14} />}
+                  {isKnown ? resolvedName : 'Unknown'}
+                  {face.confidence && (
+                    <span className="opacity-90 ml-1 font-mono bg-black/20 px-1.5 py-0.5 rounded text-[10px]">{face.confidence}%</span>
+                  )}
                 </div>
-              ) : (
-                // Unknown face: show inline input field
-                <div className="ftd-bbox-label-unknown">
-                  <input
-                    type="text"
-                    placeholder="Enter Name"
-                    value={faceLabelInputs[face.identityId] || ''}
-                    onChange={(e) => onFaceLabelChange(face.identityId, e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && onFaceLabelSave(face.identityId)}
-                    className="ftd-bbox-name-input"
-                    style={{ '--box-color': boxColor, borderColor: `${boxColor}88` }}
-                    aria-label={`Enter name for face ${idx + 1}`}
-                    id={`face-name-input-${face.identityId || idx}`}
-                  />
-                  <button
-                    className="ftd-bbox-save-btn"
-                    onClick={() => onFaceLabelSave(face.identityId)}
-                    style={{
-                      background: feedback === 'saved' ? '#22c55e22' : `${boxColor}22`,
-                      borderColor: feedback === 'saved' ? '#22c55e' : boxColor,
-                      color: feedback === 'saved' ? '#22c55e' : boxColor,
-                    }}
-                    aria-label={`Save name for face ${idx + 1}`}
-                  >
-                    {feedback === 'saved' ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : feedback === 'error' ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    ) : (
-                      <span>Save</span>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
+
+                {/* Inline Editing for Unknowns */}
+                {!isKnown && (
+                  <div className="flex items-center gap-1 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-sm p-1 shadow-2xl pointer-events-auto">
+                    <input
+                      type="text"
+                      placeholder="Enter name..."
+                      value={faceLabelInputs[face.identityId] || ''}
+                      onChange={(e) => onFaceLabelChange(face.identityId, e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && onFaceLabelSave(face.identityId)}
+                      className="bg-transparent text-xs text-white w-24 px-2 outline-none font-medium placeholder-gray-500"
+                    />
+                    <button
+                      onClick={() => onFaceLabelSave(face.identityId)}
+                      className={`p-1.5 rounded-sm transition-colors ${feedback === 'saved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                    >
+                      {feedback === 'saved' ? <Check size={14} /> : feedback === 'error' ? <X size={14} /> : <Check size={14} />}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
     </div>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Sub-component: LiveSessionLog
-//  Shows only the events from the current active session — no historical data.
-// ─────────────────────────────────────────────────────────────────────────────
-const LiveSessionLog = ({ sessionLogs, detectedFaces, knownNames }) => {
-  const logEndRef = useRef(null);
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [sessionLogs]);
-
-  return (
-    <div className="ftd-live-log">
-      <div className="ftd-live-log-header">
-        <div className="ftd-live-log-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
-          Current Session Events
-        </div>
-        <span className="ftd-live-log-count">{sessionLogs.length} events</span>
-      </div>
-
-      <div className="ftd-live-log-body">
-        {sessionLogs.length === 0 ? (
-          <div className="ftd-live-log-empty">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            <span>No events yet. Session events will appear here in real-time.</span>
-          </div>
+// ── Sub-component: DetectedPersonsList
+const DetectedPersonsList = ({ detectedFaces, knownNames }) => (
+  <div className="flex-1 min-h-0 bg-[#0c0c0c]/80 backdrop-blur-xl rounded-sm flex flex-col overflow-hidden border border-zinc-800 shadow-lg">
+    <div className="p-4 border-b border-zinc-800 bg-black/20 flex items-center justify-between">
+      <h3 className="font-semibold text-gray-200 flex items-center gap-2 text-sm uppercase tracking-wider">
+        <Users size={16} className="text-[#e3e3cb]" /> Tracked Now
+      </h3>
+      <span className="bg-[#e3e3cb]/10 text-[#e3e3cb] px-2.5 py-0.5 rounded-sm text-xs font-bold border border-[#e3e3cb]/20">
+        {detectedFaces.length}
+      </span>
+    </div>
+    <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+      <AnimatePresence>
+        {detectedFaces.length === 0 ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 text-center text-gray-500 text-sm">
+            <Camera className="mx-auto mb-2 opacity-20" size={32} />
+            Waiting for subjects...
+          </motion.div>
         ) : (
-          sessionLogs.map((log, idx) => {
-            const hue = idToHue(log.identityId || '');
-            const color = `hsl(${hue}, 75%, 60%)`;
+          detectedFaces.map((face, idx) => {
+            const resolvedName = knownNames[face.identityId] || face.name;
+            const isKnown = resolvedName && resolvedName !== 'Unknown';
+            const hue = idToHue(face.identityId || String(idx));
+            
             return (
-              <div key={idx} className="ftd-live-log-item">
-                <div className="ftd-log-avatar" style={{ background: `hsl(${hue},60%,15%)`, borderColor: color, color }}>
-                  {(log.name || 'U')[0].toUpperCase()}
+              <motion.div
+                key={face.identityId || idx}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex items-center gap-3 p-3 rounded-sm bg-gray-800/40 hover:bg-gray-800/70 transition-colors border border-white/5"
+              >
+                <div 
+                  className="w-11 h-11 rounded-sm flex items-center justify-center text-lg font-bold shadow-inner"
+                  style={{ backgroundColor: `hsl(${hue}, 60%, 15%)`, color: `hsl(${hue}, 70%, 70%)`, border: `1px solid hsl(${hue}, 50%, 30%)` }}
+                >
+                  {isKnown ? resolvedName[0].toUpperCase() : '?'}
                 </div>
-                <div className="ftd-log-content">
-                  <div className="ftd-log-name">
-                    {log.name || <em className="ftd-log-unknown">Unknown</em>}
-                    <span
-                      className={`ftd-log-event-type ${log.event === 'ENTERED' ? 'entry' : log.event === 'EXITED' ? 'exit' : 'detected'}`}
-                    >
-                      {log.event === 'ENTERED' ? '↑ Entered'
-                        : log.event === 'EXITED' ? '↓ Exited'
-                        : '● Detected'}
-                    </span>
-                  </div>
-                  <div className="ftd-log-meta">
-                    <span className="ftd-log-id">{log.identityId}</span>
-                    <span className="ftd-log-time">{formatTime(log.timestamp)}</span>
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-100 truncate">
+                    {isKnown ? resolvedName : 'Unknown'}
+                  </p>
+                  <p className="text-[10px] text-gray-500 font-mono truncate">{face.identityId}</p>
                 </div>
-                {log.confidence !== undefined && (
-                  <div className="ftd-log-confidence">
-                    <span>{log.confidence}%</span>
-                  </div>
-                )}
-              </div>
+                <div className="flex flex-col items-end gap-1">
+                  {isKnown ? (
+                    <span className="px-2 py-0.5 rounded-sm text-[9px] font-bold tracking-widest uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Known</span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-sm text-[9px] font-bold tracking-widest uppercase bg-rose-500/10 text-rose-400 border border-rose-500/20">Unknown</span>
+                  )}
+                  {face.confidence && <span className="text-[10px] text-gray-400 font-mono">{face.confidence}%</span>}
+                </div>
+              </motion.div>
             );
           })
         )}
-        <div ref={logEndRef} />
-      </div>
+      </AnimatePresence>
+    </div>
+  </div>
+);
 
-      {/* Live face cards strip */}
-      {detectedFaces.length > 0 && (
-        <div className="ftd-live-faces-strip">
-          <p className="ftd-strip-label">Currently in Frame</p>
-          <div className="ftd-strip-faces">
-            {detectedFaces.map((face, idx) => {
-              const hue = idToHue(face.identityId || String(idx));
-              const resolvedName = knownNames[face.identityId] || face.name;
+// ── Sub-component: EventsPanel
+const EventsPanel = ({ sessionLogs, knownNames }) => {
+  const eventsOnly = sessionLogs.filter(log => log.event === 'ENTERED' || log.event === 'EXITED');
+  const scrollRef = useRef(null);
+  
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [eventsOnly.length]);
+
+  return (
+    <div className="flex-1 min-h-0 bg-gray-900/60 backdrop-blur-xl rounded-sm flex flex-col overflow-hidden border border-white/10 shadow-lg">
+      <div className="p-4 border-b border-white/10 bg-black/20 flex items-center justify-between">
+        <h3 className="font-semibold text-gray-200 flex items-center gap-2 text-sm uppercase tracking-wider">
+          <Activity size={16} className="text-orange-400" /> Event Stream
+        </h3>
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+        {eventsOnly.length === 0 ? (
+           <div className="p-8 text-center text-gray-500 text-sm">
+             <Activity className="mx-auto mb-2 opacity-20" size={32} />
+             No events yet.
+           </div>
+        ) : (
+          eventsOnly.map((log, idx) => {
+             const isEntry = log.event === 'ENTERED';
+             const Icon = isEntry ? LogIn : LogOut;
+             const color = isEntry ? 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' : 'text-orange-400 bg-orange-500/10 border-orange-500/20';
+             const name = knownNames[log.identityId] || log.name || 'Unknown';
+             
+             return (
+               <motion.div 
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 key={idx} 
+                 className="flex items-start gap-3"
+               >
+                 <div className={`p-1.5 rounded-sm border ${color}`}>
+                   <Icon size={14} />
+                 </div>
+                 <div className="flex-1 min-w-0 pt-0.5 border-b border-white/5 pb-2">
+                   <p className="text-xs text-gray-300">
+                     <span className="font-bold text-gray-100">{name}</span> 
+                     {isEntry ? ' entered' : ' exited'} the frame
+                   </p>
+                   <p className="text-[10px] text-gray-500 mt-1 font-mono tracking-wide">{formatTime(log.timestamp)}</p>
+                 </div>
+               </motion.div>
+             )
+          })
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Sub-component: HistoryTimeline
+const HistoryTimeline = ({ sessionLogs, knownNames }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const uniqueDetectionsMap = new Map();
+  [...sessionLogs].forEach(log => {
+    uniqueDetectionsMap.set(log.identityId, log);
+  });
+  
+  let historyList = Array.from(uniqueDetectionsMap.values()).reverse();
+  
+  if (searchTerm) {
+    const term = searchTerm.toLowerCase();
+    historyList = historyList.filter(log => {
+      const name = knownNames[log.identityId] || log.name || 'Unknown';
+      return name.toLowerCase().includes(term) || log.identityId?.toLowerCase().includes(term);
+    });
+  }
+
+  return (
+    <div className="flex-1 min-h-0 bg-gray-900/60 backdrop-blur-xl rounded-sm flex flex-col overflow-hidden border border-white/10 shadow-lg">
+      <div className="p-4 border-b border-white/10 bg-black/20 flex flex-col gap-3">
+        <h3 className="font-semibold text-gray-200 flex items-center gap-2 text-sm uppercase tracking-wider">
+          <History size={16} className="text-teal-400" /> Recent Log
+        </h3>
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Search name or ID..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-sm py-2 pl-9 pr-3 text-xs text-gray-200 focus:outline-none focus:border-teal-500/50 transition-colors placeholder-gray-600"
+          />
+          <svg className="absolute left-3 top-2.5 w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/>
+          </svg>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+        {historyList.length === 0 ? (
+          <div className="p-8 text-center text-gray-500 text-sm">
+             <History className="mx-auto mb-2 opacity-20" size={32} />
+             No logs found
+          </div>
+        ) : (
+          <div className="relative border-l-2 border-white/5 ml-5 pl-5 space-y-5 py-3">
+            {historyList.map((log, idx) => {
+              const resolvedName = knownNames[log.identityId] || log.name;
+              const isKnown = resolvedName && resolvedName !== 'Unknown';
+              const hue = idToHue(log.identityId);
+              
               return (
-                <div key={face.identityId || idx} className="ftd-strip-face-chip"
-                  style={{ borderColor: `hsl(${hue},70%,55%)`, background: `hsl(${hue},60%,8%)` }}>
-                  <span className="ftd-chip-dot" style={{ background: `hsl(${hue},70%,55%)` }} />
-                  <span className="ftd-chip-name">
-                    {resolvedName && resolvedName !== 'Unknown' ? resolvedName : `Face #${idx + 1}`}
-                  </span>
-                  {face.confidence && (
-                    <span className="ftd-chip-conf">{face.confidence}%</span>
-                  )}
+                <div key={idx} className="relative">
+                  <div className="absolute -left-[27px] top-1.5 w-3 h-3 rounded-full bg-teal-500/20 border border-teal-500 flex items-center justify-center">
+                    <div className="w-1 h-1 bg-teal-400 rounded-sm" />
+                  </div>
+                  <div className="flex gap-3 items-center">
+                    <div 
+                      className="w-9 h-9 rounded-sm flex items-center justify-center text-sm font-bold shrink-0 shadow-inner"
+                      style={{ backgroundColor: `hsl(${hue}, 60%, 15%)`, color: `hsl(${hue}, 70%, 70%)` }}
+                    >
+                      {isKnown ? resolvedName[0].toUpperCase() : '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-200 truncate">{isKnown ? resolvedName : 'Unknown'}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] text-gray-500 font-mono truncate">{log.identityId}</span>
+                        <span className="text-[10px] text-gray-400 flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded-sm">
+                          <Clock size={10} /> {formatTime(log.timestamp)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Sub-component: PostSessionSummary
-//  Shown immediately after "End Live Session" — only shows data from that session.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Sub-component: PostSessionSummary
 const PostSessionSummary = ({ summary, onViewHistory, onStartNew }) => {
   const [editingId, setEditingId] = useState(null);
   const [editInput, setEditInput] = useState('');
   const [localFaces, setLocalFaces] = useState(summary?.mergedFaces || []);
   const [editFeedback, setEditFeedback] = useState({});
 
-  useEffect(() => {
-    setLocalFaces(summary?.mergedFaces || []);
-  }, [summary]);
+  useEffect(() => setLocalFaces(summary?.mergedFaces || []), [summary]);
 
   const handleEditSave = async (identityId) => {
     const name = editInput.trim();
     if (!name) return;
-    // Optimistic update
-    setLocalFaces(prev => prev.map(f =>
-      f.identityId === identityId ? { ...f, name } : f
-    ));
+    setLocalFaces(prev => prev.map(f => f.identityId === identityId ? { ...f, name } : f));
     setEditingId(null);
     setEditInput('');
-
-    // Persist to backend
     try {
       const res = await fetch('/api/history/update-name', {
         method: 'PATCH',
@@ -330,466 +384,230 @@ const PostSessionSummary = ({ summary, onViewHistory, onStartNew }) => {
     } catch {
       setEditFeedback(prev => ({ ...prev, [identityId]: 'error' }));
     }
-  };
-
-  const handleNameUnknown = async (identityId, nameInput) => {
-    const name = nameInput.trim();
-    if (!name) return;
-    setLocalFaces(prev => prev.map(f =>
-      f.identityId === identityId ? { ...f, name } : f
-    ));
-    try {
-      await fetch('/api/history/update-name', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identityId, newName: nameInput }),
-      });
-      setEditFeedback(prev => ({ ...prev, [identityId]: 'saved' }));
-      setTimeout(() => setEditFeedback(prev => ({ ...prev, [identityId]: null })), 2500);
-    } catch {}
   };
 
   if (!summary) return null;
 
-  const totalEntries = localFaces.reduce((s, f) => s + (f.entryCount || 0), 0);
-  const totalExits = localFaces.reduce((s, f) => s + (f.exitCount || 0), 0);
-  const durationMin = Math.floor((summary.durationSec || 0) / 60);
-  const durationSec = (summary.durationSec || 0) % 60;
-
   return (
-    <div className="ftd-post-session">
-      {/* Header */}
-      <div className="ftd-post-header">
-        <div className="ftd-post-title-row">
-          <div className="ftd-post-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="ftd-post-title">Session Complete</h2>
-            <p className="ftd-post-subtitle">
-              {formatTimestamp(summary.startedAt)} — {formatTimestamp(summary.endedAt)}
-            </p>
-          </div>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-6">
+      <div className="bg-[#0c0c0c]/80 backdrop-blur-xl p-8 rounded-sm border border-zinc-800 shadow-2xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+           <div>
+              <h2 className="text-3xl font-extrabold text-white flex items-center gap-3 uppercase">
+                 <FileText className="text-[#e3e3cb]" size={32} /> Session Summary
+              </h2>
+              <p className="text-zinc-500 mt-2 font-mono text-sm">
+                 {formatTimestamp(summary.startedAt)} — {formatTimestamp(summary.endedAt)}
+              </p>
+           </div>
+           <div className="flex gap-3">
+              <button onClick={onViewHistory} className="px-5 py-2.5 rounded-sm font-bold bg-[#e3e3cb]/5 hover:bg-[#e3e3cb]/10 text-white border border-[#e3e3cb]/20 transition-all flex items-center gap-2 uppercase tracking-wider text-xs">
+                 <History size={18} /> Analysis History
+              </button>
+              <button onClick={onStartNew} className="px-5 py-2.5 rounded-sm font-black bg-[#e3e3cb] hover:bg-[#d5d5b9] text-zinc-950 transition-colors flex items-center gap-2 shadow-md shadow-[#e3e3cb]/10 uppercase tracking-wider text-xs">
+                 <Play fill="currentColor" size={18} /> New Session
+              </button>
+           </div>
         </div>
 
-        {/* KPI strip */}
-        <div className="ftd-post-kpis">
-          <div className="ftd-post-kpi">
-            <span className="ftd-post-kpi-val">{localFaces.length}</span>
-            <span className="ftd-post-kpi-label">Faces Tracked</span>
-          </div>
-          <div className="ftd-post-kpi-divider" />
-          <div className="ftd-post-kpi">
-            <span className="ftd-post-kpi-val green">{totalEntries}</span>
-            <span className="ftd-post-kpi-label">Entries</span>
-          </div>
-          <div className="ftd-post-kpi-divider" />
-          <div className="ftd-post-kpi">
-            <span className="ftd-post-kpi-val red">{totalExits}</span>
-            <span className="ftd-post-kpi-label">Exits</span>
-          </div>
-          <div className="ftd-post-kpi-divider" />
-          <div className="ftd-post-kpi">
-            <span className="ftd-post-kpi-val gold">
-              {durationMin > 0 ? `${durationMin}m ` : ''}{durationSec}s
-            </span>
-            <span className="ftd-post-kpi-label">Duration</span>
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+           <div className="bg-black/30 p-4 rounded-sm border border-white/5">
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Faces Tracked</p>
+              <p className="text-3xl font-black text-white">{localFaces.length}</p>
+           </div>
+           <div className="bg-black/30 p-4 rounded-sm border border-white/5">
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Entries</p>
+              <p className="text-3xl font-black text-cyan-400">{summary.totalEntries}</p>
+           </div>
+           <div className="bg-black/30 p-4 rounded-sm border border-white/5">
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Exits</p>
+              <p className="text-3xl font-black text-orange-400">{summary.totalExits}</p>
+           </div>
+           <div className="bg-black/30 p-4 rounded-sm border border-zinc-900">
+              <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-1">Session Duration</p>
+              <p className="text-3xl font-black text-[#e3e3cb]">{Math.floor((summary.durationSec || 0) / 60)}m {(summary.durationSec || 0) % 60}s</p>
+           </div>
         </div>
-      </div>
 
-      {/* Per-person cards */}
-      <div className="ftd-post-body">
-        <p className="ftd-post-section-label">Per-Person Activity</p>
-        <div className="ftd-post-faces">
-          {localFaces.length === 0 ? (
-            <div className="ftd-post-empty">No faces were tracked in this session.</div>
-          ) : (
-            [...localFaces]
-              .sort((a, b) => (b.entryCount || 0) - (a.entryCount || 0))
-              .map((face, idx) => {
-                const hue = idToHue(face.identityId || '');
-                const isKnown = !!face.name;
+        <h3 className="text-lg font-bold text-gray-200 mb-4 border-b border-white/10 pb-2">Per-Person Activity</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+           {localFaces.length === 0 ? (
+             <p className="text-gray-500 italic col-span-full">No faces tracked in this session.</p>
+           ) : (
+             [...localFaces].sort((a,b) => (b.entryCount || 0) - (a.entryCount || 0)).map((face, idx) => {
+                const hue = idToHue(face.identityId);
+                const isKnown = !!face.name && face.name !== 'Unknown';
                 const fb = editFeedback[face.identityId];
-
+                
                 return (
-                  <div key={face.identityId || idx} className="ftd-post-face-card"
-                    style={{ borderLeftColor: `hsl(${hue},70%,55%)` }}>
-                    {/* Avatar */}
-                    <div className="ftd-post-face-avatar"
-                      style={{
-                        background: `hsl(${hue},60%,12%)`,
-                        borderColor: `hsl(${hue},70%,50%)`,
-                        color: `hsl(${hue},70%,65%)`,
-                      }}>
-                      {isKnown ? face.name[0].toUpperCase() : '?'}
-                    </div>
-
-                    {/* Name + ID */}
-                    <div className="ftd-post-face-info">
-                      {editingId === face.identityId ? (
-                        <div className="ftd-post-edit-row">
-                          <input
-                            autoFocus
-                            type="text"
-                            value={editInput}
-                            onChange={e => setEditInput(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleEditSave(face.identityId);
-                              if (e.key === 'Escape') { setEditingId(null); setEditInput(''); }
-                            }}
-                            className="ftd-post-edit-input"
-                            aria-label={`Rename ${face.name || 'unknown face'}`}
-                          />
-                          <button className="ftd-post-edit-confirm" onClick={() => handleEditSave(face.identityId)}>✓</button>
-                          <button className="ftd-post-edit-cancel" onClick={() => { setEditingId(null); setEditInput(''); }}>✕</button>
+                  <div key={face.identityId || idx} className="bg-gray-800/40 p-4 rounded-sm border border-white/5 flex gap-4 items-center transition-colors hover:bg-gray-800/60">
+                     <div className="w-12 h-12 rounded-sm flex items-center justify-center text-xl font-bold shadow-inner shrink-0" style={{ backgroundColor: `hsl(${hue}, 60%, 15%)`, color: `hsl(${hue}, 70%, 70%)` }}>
+                        {isKnown ? face.name[0].toUpperCase() : '?'}
+                     </div>
+                     <div className="flex-1 min-w-0">
+                        {editingId === face.identityId ? (
+                           <div className="flex items-center gap-1 mb-1">
+                              <input autoFocus type="text" value={editInput} onChange={e=>setEditInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') handleEditSave(face.identityId); if(e.key==='Escape') {setEditingId(null);setEditInput('');} }} className="bg-black/50 text-white text-sm px-2 py-1 rounded-sm outline-none w-full border border-[#e3e3cb]/50" />
+                              <button onClick={() => handleEditSave(face.identityId)} className="text-emerald-400 p-1 hover:bg-emerald-400/20 rounded-sm"><Check size={14}/></button>
+                              <button onClick={() => {setEditingId(null);setEditInput('');}} className="text-rose-400 p-1 hover:bg-rose-400/20 rounded-sm"><X size={14}/></button>
+                           </div>
+                        ) : (
+                           <div className="flex items-center gap-2 mb-1">
+                              <p className={`text-sm font-bold truncate ${isKnown ? 'text-white' : 'text-gray-400 italic'}`}>{isKnown ? face.name : 'Unknown Person'}</p>
+                              {isKnown && <button onClick={()=>{setEditingId(face.identityId);setEditInput(face.name);}} className="text-gray-500 hover:text-[#e3e3cb] transition-colors"><Edit2 size={12}/></button>}
+                              {!isKnown && <button onClick={()=>{setEditingId(face.identityId);setEditInput('');}} className="text-xs bg-[#e3e3cb]/20 text-[#e3e3cb] px-1.5 py-0.5 rounded-sm font-bold hover:bg-[#e3e3cb]/40 transition-colors">Name?</button>}
+                              {fb === 'saved' && <Check size={12} className="text-emerald-400"/>}
+                           </div>
+                        )}
+                        <p className="text-[10px] text-gray-500 font-mono truncate">{face.identityId}</p>
+                        <div className="flex gap-2 mt-2">
+                           {(face.entryCount > 0 || face.exitCount > 0) ? (
+                              <>
+                                 {face.entryCount > 0 && <span className="text-[10px] font-bold bg-cyan-500/10 text-cyan-400 px-1.5 py-0.5 rounded-sm">↑ {face.entryCount} Entries</span>}
+                                 {face.exitCount > 0 && <span className="text-[10px] font-bold bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded-sm">↓ {face.exitCount} Exits</span>}
+                              </>
+                           ) : (
+                              <span className="text-[10px] font-bold bg-gray-500/10 text-gray-400 px-1.5 py-0.5 rounded-sm">Seen {face.appearanceCount || 1}×</span>
+                           )}
                         </div>
-                      ) : (
-                        <div className="ftd-post-name-row">
-                          <span className="ftd-post-face-name">
-                            {isKnown
-                              ? face.name
-                              : <em className="ftd-post-unknown-label">Unknown</em>}
-                          </span>
-                          {fb === 'saved' && <span className="ftd-inline-saved">✓ saved</span>}
-                          {fb === 'error' && <span className="ftd-inline-error">✗ error</span>}
-                          {isKnown && (
-                            <button
-                              className="ftd-post-rename-btn"
-                              onClick={() => { setEditingId(face.identityId); setEditInput(face.name); }}
-                              title="Correct this name"
-                              aria-label={`Rename ${face.name}`}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      <span className="ftd-post-face-id">{face.identityId}</span>
-
-                      {/* Name input for unknowns */}
-                      {!isKnown && editingId !== face.identityId && (
-                        <UnknownFaceNameInput
-                          identityId={face.identityId}
-                          onSave={handleNameUnknown}
-                          feedback={fb}
-                        />
-                      )}
-                    </div>
-
-                    {/* Stats */}
-                    <div className="ftd-post-face-stats">
-                      {face.entryCount > 0 && (
-                        <span className="ftd-post-stat-entry">▲ {face.entryCount} {face.entryCount === 1 ? 'entry' : 'entries'}</span>
-                      )}
-                      {face.exitCount > 0 && (
-                        <span className="ftd-post-stat-exit">▼ {face.exitCount} {face.exitCount === 1 ? 'exit' : 'exits'}</span>
-                      )}
-                      {face.entryCount === 0 && face.exitCount === 0 && (
-                        <span className="ftd-post-stat-seen">● Seen {face.appearanceCount || 1}×</span>
-                      )}
-                    </div>
+                     </div>
                   </div>
-                );
-              })
-          )}
+                )
+             })
+           )}
         </div>
       </div>
-
-      {/* Footer actions */}
-      <div className="ftd-post-actions">
-        <button className="ftd-btn-primary" onClick={onStartNew} id="ftd-start-new-session">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="16" />
-            <line x1="8" y1="12" x2="16" y2="12" />
-          </svg>
-          Start New Session
-        </button>
-        <button className="ftd-btn-ghost" onClick={onViewHistory} id="ftd-view-history">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z" />
-          </svg>
-          View Analysis History
-        </button>
-      </div>
-    </div>
+    </motion.div>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Helper sub-component: UnknownFaceNameInput
-// ─────────────────────────────────────────────────────────────────────────────
-const UnknownFaceNameInput = ({ identityId, onSave, feedback }) => {
-  const [value, setValue] = useState('');
-  return (
-    <div className="ftd-unknown-name-row">
-      <input
-        type="text"
-        placeholder="Name this person…"
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && onSave(identityId, value)}
-        className="ftd-unknown-name-input"
-        id={`post-unknown-name-${identityId}`}
-      />
-      <button
-        className={`ftd-unknown-save-btn ${feedback === 'saved' ? 'saved' : feedback === 'error' ? 'error' : ''}`}
-        onClick={() => onSave(identityId, value)}
-      >
-        {feedback === 'saved' ? '✓' : feedback === 'error' ? '✗' : 'Save'}
-      </button>
-    </div>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Sub-component: AnalysisHistoryView
-//  Shows all past sessions and their aggregate data — completely separate from
-//  the live session view.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Sub-component: AnalysisHistoryView
 const AnalysisHistoryView = ({ historicalSessions, onEditHistoryName }) => {
   const [expandedSessionId, setExpandedSessionId] = useState(null);
-  const [editingEntry, setEditingEntry] = useState(null); // { sessionIdx, faceIdx }
-  const [editInput, setEditInput] = useState('');
-  const [editFeedback, setEditFeedback] = useState({});
-
-  const handleSaveHistoryEdit = async (identityId, sessionIdx, faceIdx) => {
-    const name = editInput.trim();
-    if (!name) return;
-    onEditHistoryName(identityId, name, sessionIdx, faceIdx);
-    setEditingEntry(null);
-    setEditInput('');
-
-    try {
-      const res = await fetch('/api/history/update-name', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identityId, newName: name }),
-      });
-      const data = await res.json();
-      setEditFeedback(prev => ({ ...prev, [identityId]: data.success ? 'saved' : 'error' }));
-      setTimeout(() => setEditFeedback(prev => ({ ...prev, [identityId]: null })), 2500);
-    } catch {
-      setEditFeedback(prev => ({ ...prev, [identityId]: 'error' }));
-    }
-  };
 
   if (!historicalSessions || historicalSessions.length === 0) {
     return (
-      <div className="ftd-history-empty">
-        <div className="ftd-history-empty-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h3>No Historical Sessions Yet</h3>
-        <p>Completed sessions will appear here for analysis.</p>
+      <div className="max-w-4xl mx-auto flex flex-col items-center justify-center py-20 text-gray-500 bg-gray-900/30 rounded-sm border border-white/5 backdrop-blur-sm">
+        <History size={64} className="mb-4 opacity-20" />
+        <h3 className="text-xl font-bold text-gray-300">No History Available</h3>
+        <p className="text-sm mt-2">Complete a live tracking session to see analysis here.</p>
       </div>
     );
   }
 
   return (
-    <div className="ftd-history-view">
-      <div className="ftd-history-header">
-        <h2 className="ftd-history-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Analysis History
-        </h2>
-        <span className="ftd-history-count">{historicalSessions.length} sessions</span>
-      </div>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto space-y-6">
+       <div className="flex items-center justify-between mb-8">
+          <h2 className="text-3xl font-extrabold text-white flex items-center gap-3">
+             <History className="text-teal-400" size={32} /> Analysis History
+          </h2>
+          <span className="bg-gray-800 text-gray-300 px-3 py-1 rounded-sm text-sm font-bold border border-gray-700">
+             {historicalSessions.length} Sessions
+          </span>
+       </div>
 
-      <div className="ftd-history-sessions">
-        {[...historicalSessions].reverse().map((session, sIdx) => {
-          const realIdx = historicalSessions.length - 1 - sIdx;
-          const isExpanded = expandedSessionId === session.id;
-          const duration = session.durationSec
-            ? `${Math.floor(session.durationSec / 60)}m ${session.durationSec % 60}s`
-            : '—';
-
-          return (
-            <div key={session.id} className={`ftd-history-session-card ${isExpanded ? 'expanded' : ''}`}>
-              {/* Session header — click to expand */}
-              <button
-                className="ftd-history-session-header"
-                onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
-                aria-expanded={isExpanded}
-                id={`ftd-history-session-${session.id}`}
-              >
-                <div className="ftd-hist-session-left">
-                  <div className="ftd-hist-session-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <line x1="3" y1="9" x2="21" y2="9" />
-                      <line x1="9" y1="21" x2="9" y2="9" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="ftd-hist-session-date">{formatTimestamp(session.startedAt)}</p>
-                    <p className="ftd-hist-session-meta">
-                      {session.faces?.length || 0} faces · {duration}
-                    </p>
-                  </div>
-                </div>
-                <div className="ftd-hist-session-right">
-                  <div className="ftd-hist-stat">
-                    <span className="ftd-hist-stat-val green">{session.totalEntries || 0}</span>
-                    <span className="ftd-hist-stat-label">entries</span>
-                  </div>
-                  <div className="ftd-hist-stat">
-                    <span className="ftd-hist-stat-val red">{session.totalExits || 0}</span>
-                    <span className="ftd-hist-stat-label">exits</span>
-                  </div>
-                  <svg
-                    className={`ftd-hist-chevron ${isExpanded ? 'open' : ''}`}
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </div>
-              </button>
-
-              {/* Expanded: per-face rows with inline Edit Name */}
-              {isExpanded && (
-                <div className="ftd-history-session-detail">
-                  {/* Session log entries */}
-                  {session.logs && session.logs.length > 0 && (
-                    <div className="ftd-hist-logs">
-                      <p className="ftd-hist-logs-label">Session Events</p>
-                      {session.logs.map((log, lIdx) => (
-                        <div key={lIdx} className="ftd-hist-log-row">
-                          <span className={`ftd-hist-log-event ${log.event?.toLowerCase()}`}>
-                            {log.event === 'ENTERED' ? '↑' : log.event === 'EXITED' ? '↓' : '●'}
-                          </span>
-                          <span className="ftd-hist-log-name">
-                            {log.name || <em>Unknown</em>}
-                          </span>
-                          <span className="ftd-hist-log-time">{formatTime(log.timestamp)}</span>
+       <div className="space-y-4">
+          {[...historicalSessions].reverse().map((session, sIdx) => {
+             const realIdx = historicalSessions.length - 1 - sIdx;
+             const isExpanded = expandedSessionId === session.id;
+             const duration = session.durationSec ? `${Math.floor(session.durationSec / 60)}m ${session.durationSec % 60}s` : '—';
+             
+             return (
+               <div key={session.id} className="bg-gray-900/60 backdrop-blur-md rounded-sm border border-white/10 overflow-hidden transition-all duration-300 shadow-lg">
+                  <button onClick={() => setExpandedSessionId(isExpanded ? null : session.id)} className="w-full p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-white/5 transition-colors text-left focus:outline-none">
+                     <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-sm bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center shrink-0">
+                           <FileText size={24} />
                         </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Per-face cards with Edit Name */}
-                  <p className="ftd-hist-faces-label">Tracked Identities</p>
-                  <div className="ftd-hist-faces">
-                    {(session.faces || []).map((face, fIdx) => {
-                      const hue = idToHue(face.identityId || '');
-                      const isKnown = !!face.name;
-                      const isEditing = editingEntry?.sessionIdx === realIdx && editingEntry?.faceIdx === fIdx;
-                      const fb = editFeedback[face.identityId];
-                      return (
-                        <div key={face.identityId || fIdx} className="ftd-hist-face-row">
-                          <div
-                            className="ftd-hist-face-avatar"
-                            style={{
-                              background: `hsl(${hue},60%,12%)`,
-                              borderColor: `hsl(${hue},70%,50%)`,
-                              color: `hsl(${hue},70%,65%)`,
-                            }}
-                          >
-                            {isKnown ? face.name[0].toUpperCase() : '?'}
-                          </div>
-
-                          <div className="ftd-hist-face-info">
-                            {isEditing ? (
-                              <div className="ftd-hist-edit-row">
-                                <input
-                                  autoFocus
-                                  type="text"
-                                  value={editInput}
-                                  onChange={e => setEditInput(e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') handleSaveHistoryEdit(face.identityId, realIdx, fIdx);
-                                    if (e.key === 'Escape') { setEditingEntry(null); setEditInput(''); }
-                                  }}
-                                  className="ftd-hist-edit-input"
-                                  aria-label={`Edit name for ${face.name || 'unknown'}`}
-                                />
-                                <button
-                                  className="ftd-hist-edit-confirm"
-                                  onClick={() => handleSaveHistoryEdit(face.identityId, realIdx, fIdx)}
-                                >✓</button>
-                                <button
-                                  className="ftd-hist-edit-cancel"
-                                  onClick={() => { setEditingEntry(null); setEditInput(''); }}
-                                >✕</button>
-                              </div>
-                            ) : (
-                              <div className="ftd-hist-name-row">
-                                <span className="ftd-hist-face-name">
-                                  {isKnown ? face.name : <em className="ftd-hist-unknown">Unknown</em>}
-                                </span>
-                                {fb === 'saved' && <span className="ftd-inline-saved">✓ saved</span>}
-                                {fb === 'error' && <span className="ftd-inline-error">✗ failed</span>}
-                                {/* Edit Name button — available for ALL entries */}
-                                <button
-                                  className="ftd-hist-edit-name-btn"
-                                  onClick={() => {
-                                    setEditingEntry({ sessionIdx: realIdx, faceIdx: fIdx });
-                                    setEditInput(face.name || '');
-                                  }}
-                                  title={isKnown ? 'Correct name' : 'Add name'}
-                                  aria-label={`Edit name for face ${fIdx + 1} in session`}
-                                  id={`ftd-hist-edit-${face.identityId}-${realIdx}`}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                  </svg>
-                                  Edit Name
-                                </button>
-                              </div>
-                            )}
-                            <span className="ftd-hist-face-id">{face.identityId}</span>
-                          </div>
-
-                          <div className="ftd-hist-face-stats">
-                            {face.entryCount > 0 && <span className="ftd-stat-entry">▲ {face.entryCount}</span>}
-                            {face.exitCount > 0 && <span className="ftd-stat-exit">▼ {face.exitCount}</span>}
-                            {face.confidence && <span className="ftd-stat-conf">{face.confidence}%</span>}
-                          </div>
+                        <div>
+                           <p className="text-lg font-bold text-white">{formatTimestamp(session.startedAt)}</p>
+                           <p className="text-sm text-gray-400 font-mono mt-1">{session.faces?.length || 0} faces • {duration}</p>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+                     </div>
+                     <div className="flex items-center gap-6">
+                        <div className="flex gap-4">
+                           <div className="text-center">
+                              <p className="text-xl font-black text-cyan-400">{session.totalEntries || 0}</p>
+                              <p className="text-[10px] uppercase font-bold text-gray-500">Entries</p>
+                           </div>
+                           <div className="text-center">
+                              <p className="text-xl font-black text-orange-400">{session.totalExits || 0}</p>
+                              <p className="text-[10px] uppercase font-bold text-gray-500">Exits</p>
+                           </div>
+                        </div>
+                        <div className={`w-8 h-8 rounded-sm bg-white/5 flex items-center justify-center transition-transform ${isExpanded ? 'rotate-180 bg-white/10' : ''}`}>
+                           <ChevronDown size={18} className="text-gray-400" />
+                        </div>
+                     </div>
+                  </button>
+
+                  <AnimatePresence>
+                     {isExpanded && (
+                        <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                           <div className="p-6 border-t border-white/10 bg-black/20 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                              {/* Session Logs summary */}
+                              <div>
+                                 <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 border-b border-white/10 pb-2">Event Timeline</h4>
+                                 <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                    {(session.logs || []).map((log, lIdx) => (
+                                       <div key={lIdx} className="flex items-center gap-3 text-sm bg-gray-800/30 p-2 rounded-sm border border-white/5">
+                                          <span className={`w-6 h-6 flex items-center justify-center rounded-sm shrink-0 ${log.event === 'ENTERED' ? 'bg-cyan-500/20 text-cyan-400' : log.event === 'EXITED' ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                                             {log.event === 'ENTERED' ? '↑' : log.event === 'EXITED' ? '↓' : '●'}
+                                          </span>
+                                          <span className="font-bold text-gray-200 flex-1 truncate">{log.name || 'Unknown'}</span>
+                                          <span className="text-xs text-gray-500 font-mono">{formatTime(log.timestamp)}</span>
+                                       </div>
+                                    ))}
+                                 </div>
+                              </div>
+                              {/* Tracked Faces summary */}
+                              <div>
+                                 <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 border-b border-white/10 pb-2">Tracked Identities</h4>
+                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                    {(session.faces || []).map((face, fIdx) => {
+                                       const hue = idToHue(face.identityId);
+                                       const isKnown = !!face.name;
+                                       return (
+                                          <div key={fIdx} className="bg-gray-800/50 p-3 rounded-sm border border-white/5 flex gap-3 items-center">
+                                             <div className="w-10 h-10 rounded-sm flex items-center justify-center text-sm font-bold shrink-0" style={{ backgroundColor: `hsl(${hue}, 60%, 15%)`, color: `hsl(${hue}, 70%, 70%)` }}>
+                                                {isKnown ? face.name[0].toUpperCase() : '?'}
+                                             </div>
+                                             <div className="min-w-0">
+                                                <p className="text-sm font-bold text-gray-200 truncate">{isKnown ? face.name : 'Unknown'}</p>
+                                                <p className="text-[10px] text-gray-500 font-mono truncate">{face.identityId}</p>
+                                             </div>
+                                          </div>
+                                       )
+                                    })}
+                                 </div>
+                              </div>
+                           </div>
+                        </motion.div>
+                     )}
+                  </AnimatePresence>
+               </div>
+             )
+          })}
+       </div>
+    </motion.div>
   );
-};
+}
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Main: FaceTrackingDashboard
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Main: FaceTrackingDashboard
 const FaceTrackingDashboard = () => {
-  // ── Core state ─────────────────────────────────────────────────────────────
-  const [isLive, setIsLive] = useState(false);                        // session active?
-  const [view, setView] = useState('live');                           // 'live' | 'post-session' | 'history'
-  const [detectedFaces, setDetectedFaces] = useState([]);             // current frame faces
-  const [sessionLogs, setSessionLogs] = useState([]);                 // CURRENT session events only
-  const [knownNames, setKnownNames] = useState({});                   // { identityId → name }
-  const [faceLabelInputs, setFaceLabelInputs] = useState({});         // { identityId → inputValue }
-  const [nameFeedback, setNameFeedback] = useState({});               // { identityId → 'saved'|'error'|null }
+  const [isLive, setIsLive] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [view, setView] = useState('live');
+  const [detectedFaces, setDetectedFaces] = useState([]);
+  const [sessionLogs, setSessionLogs] = useState([]);
+  const [knownNames, setKnownNames] = useState({});
+  const [faceLabelInputs, setFaceLabelInputs] = useState({});
+  const [nameFeedback, setNameFeedback] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [systemStatus, setSystemStatus] = useState('System Offline');
-  const [postSessionSummary, setPostSessionSummary] = useState(null); // data from just-ended session
-  const [historicalSessions, setHistoricalSessions] = useState([]);   // all past sessions
+  const [postSessionSummary, setPostSessionSummary] = useState(null);
+  const [historicalSessions, setHistoricalSessions] = useState([]);
 
-  // ── Refs ────────────────────────────────────────────────────────────────────
   const webcamRef = useRef(null);
   const containerRef = useRef(null);
   const captureIntervalRef = useRef(null);
@@ -798,41 +616,33 @@ const FaceTrackingDashboard = () => {
   const isLockedRef = useRef(false);
   const sessionStartRef = useRef(null);
 
-  // ── Scene-change detection ──────────────────────────────────────────────────
-  const hasSceneChanged = useCallback((imageSrc) =>
-    new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 32; canvas.height = 24;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { resolve(true); return; }
-        ctx.drawImage(img, 0, 0, 32, 24);
-        const data = ctx.getImageData(0, 0, 32, 24).data;
-        if (!lastFrameRef.current) { lastFrameRef.current = data; resolve(true); return; }
-        let diff = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          diff += Math.abs(data[i] - lastFrameRef.current[i]);
-          diff += Math.abs(data[i + 1] - lastFrameRef.current[i + 1]);
-          diff += Math.abs(data[i + 2] - lastFrameRef.current[i + 2]);
-        }
-        lastFrameRef.current = data;
-        resolve(diff / (32 * 24 * 3) > 18);
-      };
-      img.onerror = () => resolve(true);
-      img.src = imageSrc;
-    }), []);
+  const hasSceneChanged = useCallback((imageSrc) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 32; canvas.height = 24;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(true); return; }
+      ctx.drawImage(img, 0, 0, 32, 24);
+      const data = ctx.getImageData(0, 0, 32, 24).data;
+      if (!lastFrameRef.current) { lastFrameRef.current = data; resolve(true); return; }
+      let diff = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        diff += Math.abs(data[i] - lastFrameRef.current[i]);
+        diff += Math.abs(data[i + 1] - lastFrameRef.current[i + 1]);
+        diff += Math.abs(data[i + 2] - lastFrameRef.current[i + 2]);
+      }
+      lastFrameRef.current = data;
+      resolve(diff / (32 * 24 * 3) > 18);
+    };
+    img.onerror = () => resolve(true);
+    img.src = imageSrc;
+  }), []);
 
-  // ── Camera: initialize video stream ────────────────────────────────────────
   const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
-        audio: false,
-      });
-      if (webcamRef.current) {
-        webcamRef.current.srcObject = stream;
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
+      if (webcamRef.current) webcamRef.current.srcObject = stream;
     } catch (err) {
       console.error('[FTD] Camera access denied:', err);
       setSystemStatus('⚠️ Camera access denied');
@@ -846,13 +656,11 @@ const FaceTrackingDashboard = () => {
     }
   }, []);
 
-  // ── Capture frame & send to AI API ─────────────────────────────────────────
   const captureAndSend = useCallback(async () => {
     if (!webcamRef.current || !isLive) return;
     const video = webcamRef.current;
     if (video.readyState < 2) return;
 
-    // Draw frame to canvas to get image data
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
@@ -870,7 +678,7 @@ const FaceTrackingDashboard = () => {
     formData.append('frame', file);
 
     setIsProcessing(true);
-    setSystemStatus('Analyzing…');
+    setSystemStatus('Analyzing...');
 
     try {
       const res = await fetch('/api/stream-frame', { method: 'POST', body: formData });
@@ -878,64 +686,43 @@ const FaceTrackingDashboard = () => {
 
       if (data.success) {
         const detections = data.detections || [];
-
-        // Update known names from API response
         setKnownNames(prev => {
           const updated = { ...prev };
           detections.forEach(face => {
-            if (face.identityId && face.name && face.name !== 'Unknown') {
-              updated[face.identityId] = face.name;
-            }
+            if (face.identityId && face.name && face.name !== 'Unknown') updated[face.identityId] = face.name;
           });
           return updated;
         });
 
-        // Map detections, merging with bounding box data from API
         const facesWithBbox = detections.map((face, idx) => ({
           ...face,
-          bbox: face.bbox || {
-            x: 0.1 + (idx * 0.25) % 0.7,
-            y: 0.1,
-            w: 0.22,
-            h: 0.35,
-          },
+          bbox: face.bbox || { x: 0.1 + (idx * 0.25) % 0.7, y: 0.1, w: 0.22, h: 0.35 },
         }));
 
         setDetectedFaces(facesWithBbox);
         isLockedRef.current = detections.length > 0;
 
-        // Log new detection events to current session log
         if (detections.length > 0) {
           const timestamp = new Date().toISOString();
           setSessionLogs(prev => {
             const newLogs = [];
             detections.forEach(face => {
-              if (data.newEntries?.includes(face.identityId)) {
-                newLogs.push({ ...face, event: 'ENTERED', timestamp });
-              } else if (data.newExits?.includes(face.identityId)) {
-                newLogs.push({ ...face, event: 'EXITED', timestamp });
-              } else {
-                // Only log detection once per identity per session (dedup)
+              if (data.newEntries?.includes(face.identityId)) newLogs.push({ ...face, event: 'ENTERED', timestamp });
+              else if (data.newExits?.includes(face.identityId)) newLogs.push({ ...face, event: 'EXITED', timestamp });
+              else {
                 const alreadyLogged = prev.some(l => l.identityId === face.identityId);
-                if (!alreadyLogged) {
-                  newLogs.push({ ...face, event: 'DETECTED', timestamp });
-                }
+                if (!alreadyLogged) newLogs.push({ ...face, event: 'DETECTED', timestamp });
               }
             });
             return [...prev, ...newLogs];
           });
 
-          const names = detections
-            .map(f => knownNames[f.identityId] || f.name)
-            .filter(n => n && n !== 'Unknown');
-
-          setSystemStatus(
-            `🎯 Tracking: ${names.length > 0 ? names.join(', ') : `${detections.length} face(s)`}`
-          );
+          const names = detections.map(f => knownNames[f.identityId] || f.name).filter(n => n && n !== 'Unknown');
+          setSystemStatus(`🎯 Tracking: ${names.length > 0 ? names.join(', ') : `${detections.length} face(s)`}`);
         } else {
           isLockedRef.current = false;
           setDetectedFaces([]);
-          setSystemStatus('🔍 Scanning…');
+          setSystemStatus('🔍 Scanning...');
         }
       }
     } catch (err) {
@@ -946,32 +733,19 @@ const FaceTrackingDashboard = () => {
     }
   }, [isLive, hasSceneChanged, knownNames]);
 
-  // ── Session lifecycle ───────────────────────────────────────────────────────
   const handleStartSession = useCallback(async () => {
-    setSessionLogs([]);
-    setDetectedFaces([]);
-    setFaceLabelInputs({});
-    setNameFeedback({});
-    isLockedRef.current = false;
-    lastFrameRef.current = null;
+    setSessionLogs([]); setDetectedFaces([]); setFaceLabelInputs({}); setNameFeedback({});
+    isLockedRef.current = false; lastFrameRef.current = null;
     sessionStartRef.current = new Date().toISOString();
     setPostSessionSummary(null);
-
     try { await fetch('/api/start-stream-analysis', { method: 'POST' }); } catch {}
-
     await startCamera();
-    setIsLive(true);
-    setView('live');
-    setSystemStatus('🔍 Scanning…');
+    setIsLive(true); setView('live'); setSystemStatus('🔍 Scanning...');
   }, [startCamera]);
 
   const handleEndSession = useCallback(async () => {
-    // Stop capture loop
-    clearInterval(captureIntervalRef.current);
-    clearInterval(movementsIntervalRef.current);
-    setIsLive(false);
-    setSystemStatus('⏳ Compiling session report…');
-
+    clearInterval(captureIntervalRef.current); clearInterval(movementsIntervalRef.current);
+    setIsLive(false); setSystemStatus('⏳ Compiling session report...');
     const endedAt = new Date().toISOString();
 
     try {
@@ -980,131 +754,71 @@ const FaceTrackingDashboard = () => {
         fetch('/api/movements').catch(() => null),
       ]);
 
-      let mergedFaces = [];
-      let totalEntries = 0;
-      let totalExits = 0;
-      let durationSec = 0;
+      let mergedFaces = []; let totalEntries = 0; let totalExits = 0; let durationSec = 0;
 
       if (sessionRes) {
         const sessionData = await sessionRes.json().catch(() => ({}));
         const movementsData = movementsRes ? await movementsRes.json().catch(() => ({})) : {};
         const latestMovements = movementsData.movements || [];
-        const movMap = {};
-        latestMovements.forEach(m => { movMap[m.identityId] = m; });
+        const movMap = {}; latestMovements.forEach(m => { movMap[m.identityId] = m; });
 
-        mergedFaces = (sessionData.report?.faces || []).map(face => {
-          const mov = movMap[face.identityId] || {};
-          return {
-            ...face,
-            name: knownNames[face.identityId] || (mov.name && mov.name !== 'Unknown' ? mov.name : null),
-            entryCount: mov.entryCount || 0,
-            exitCount: mov.exitCount || 0,
-          };
-        });
+        mergedFaces = (sessionData.report?.faces || []).map(face => ({
+          ...face,
+          name: knownNames[face.identityId] || (movMap[face.identityId]?.name && movMap[face.identityId].name !== 'Unknown' ? movMap[face.identityId].name : null),
+          entryCount: movMap[face.identityId]?.entryCount || 0,
+          exitCount: movMap[face.identityId]?.exitCount || 0,
+        }));
 
         durationSec = sessionData.report?.durationSec || 0;
         totalEntries = sessionData.report?.totalEntries || 0;
         totalExits = sessionData.report?.totalExits || 0;
       } else {
-        // Fallback: build summary from session logs
         const seenIds = {};
         sessionLogs.forEach(log => {
-          if (!seenIds[log.identityId]) {
-            seenIds[log.identityId] = {
-              identityId: log.identityId,
-              name: knownNames[log.identityId] || log.name || null,
-              entryCount: 0, exitCount: 0, appearanceCount: 0,
-            };
-          }
+          if (!seenIds[log.identityId]) seenIds[log.identityId] = { identityId: log.identityId, name: knownNames[log.identityId] || log.name || null, entryCount: 0, exitCount: 0, appearanceCount: 0 };
           if (log.event === 'ENTERED') seenIds[log.identityId].entryCount++;
           else if (log.event === 'EXITED') seenIds[log.identityId].exitCount++;
           else seenIds[log.identityId].appearanceCount++;
         });
         mergedFaces = Object.values(seenIds);
-        const ms = sessionStartRef.current
-          ? (new Date(endedAt) - new Date(sessionStartRef.current))
-          : 0;
+        const ms = sessionStartRef.current ? (new Date(endedAt) - new Date(sessionStartRef.current)) : 0;
         durationSec = Math.round(ms / 1000);
       }
 
-      const summary = {
-        id: `session_${Date.now()}`,
-        startedAt: sessionStartRef.current,
-        endedAt,
-        durationSec,
-        totalEntries,
-        totalExits,
-        mergedFaces,
-        logs: [...sessionLogs],
-      };
-
+      const summary = { id: `session_${Date.now()}`, startedAt: sessionStartRef.current, endedAt, durationSec, totalEntries, totalExits, mergedFaces, logs: [...sessionLogs] };
       setPostSessionSummary(summary);
-
-      // Add to historical sessions
-      setHistoricalSessions(prev => [...prev, {
-        ...summary,
-        faces: mergedFaces,
-      }]);
-
+      setHistoricalSessions(prev => [...prev, { ...summary, faces: mergedFaces }]);
       setSystemStatus(`✅ Done — ${mergedFaces.length} face(s) tracked`);
     } catch (err) {
       console.error('[FTD] Stop session error:', err);
       setSystemStatus('⚠️ Failed to compile session report');
     }
-
-    stopCamera();
-    setView('post-session');
+    stopCamera(); setView('post-session');
   }, [knownNames, sessionLogs, stopCamera]);
 
-  // ── Start/stop capture loop when isLive changes ────────────────────────────
   useEffect(() => {
-    if (isLive) {
-      captureIntervalRef.current = setInterval(captureAndSend, 2000);
-    } else {
-      clearInterval(captureIntervalRef.current);
-      clearInterval(movementsIntervalRef.current);
-    }
-    return () => {
-      clearInterval(captureIntervalRef.current);
-      clearInterval(movementsIntervalRef.current);
-    };
-  }, [isLive, captureAndSend]);
+    if (isLive && !isPaused) captureIntervalRef.current = setInterval(captureAndSend, 2000);
+    else { clearInterval(captureIntervalRef.current); }
+    if (!isLive) clearInterval(movementsIntervalRef.current);
+    return () => { clearInterval(captureIntervalRef.current); clearInterval(movementsIntervalRef.current); };
+  }, [isLive, isPaused, captureAndSend]);
 
-  // ── Face label handling ────────────────────────────────────────────────────
-  const handleFaceLabelChange = useCallback((identityId, value, triggerEdit = false) => {
-    if (triggerEdit) {
-      // Edit mode: pre-fill input with existing name
-      setFaceLabelInputs(prev => ({ ...prev, [identityId]: value }));
-      setKnownNames(prev => {
-        const updated = { ...prev };
-        delete updated[identityId]; // clear to show input
-        return updated;
-      });
-    } else {
-      setFaceLabelInputs(prev => ({ ...prev, [identityId]: value }));
-    }
+  const handleFaceLabelChange = useCallback((identityId, value) => {
+    setFaceLabelInputs(prev => ({ ...prev, [identityId]: value }));
   }, []);
 
   const handleFaceLabelSave = useCallback(async (identityId) => {
     const name = (faceLabelInputs[identityId] || '').trim();
     if (!name) return;
 
-    // Optimistic update
     setKnownNames(prev => ({ ...prev, [identityId]: name }));
     setFaceLabelInputs(prev => { const n = { ...prev }; delete n[identityId]; return n; });
     setNameFeedback(prev => ({ ...prev, [identityId]: null }));
 
-    // Also update sessionLogs names for this identity
-    setSessionLogs(prev => prev.map(log =>
-      log.identityId === identityId ? { ...log, name } : log
-    ));
+    setSessionLogs(prev => prev.map(log => log.identityId === identityId ? { ...log, name } : log));
 
     try {
-      const res = await fetch('/api/history/update-name', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identityId, newName: name }),
-      });
+      const res = await fetch('/api/history/update-name', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identityId, newName: name }) });
       const data = await res.json();
       setNameFeedback(prev => ({ ...prev, [identityId]: data.success ? 'saved' : 'error' }));
     } catch {
@@ -1113,222 +827,92 @@ const FaceTrackingDashboard = () => {
     setTimeout(() => setNameFeedback(prev => ({ ...prev, [identityId]: null })), 2000);
   }, [faceLabelInputs]);
 
-  // ── Historical name correction ─────────────────────────────────────────────
-  const handleEditHistoryName = useCallback((identityId, newName, sessionIdx, faceIdx) => {
-    setHistoricalSessions(prev => {
-      const updated = [...prev];
-      if (updated[sessionIdx]) {
-        const faces = [...(updated[sessionIdx].faces || [])];
-        if (faces[faceIdx]) {
-          faces[faceIdx] = { ...faces[faceIdx], name: newName };
-        }
-        // Also update logs within that session
-        const logs = (updated[sessionIdx].logs || []).map(log =>
-          log.identityId === identityId ? { ...log, name: newName } : log
-        );
-        updated[sessionIdx] = { ...updated[sessionIdx], faces, logs };
-      }
-      return updated;
-    });
-    // Propagate to knownNames for future sessions
-    setKnownNames(prev => ({ ...prev, [identityId]: newName }));
-  }, []);
+  // Derive stats for Live Statistics Panel
+  const uniqueIds = new Set(sessionLogs.map(l => l.identityId));
+  const uniquePeople = uniqueIds.size;
+  const totalDetections = sessionLogs.length;
+  let knownPeopleCount = 0; let unknownPeopleCount = 0; let entryCount = 0; let exitCount = 0;
+  const latestStatusMap = {};
+  sessionLogs.forEach(log => {
+    if (log.event === 'ENTERED') entryCount++;
+    if (log.event === 'EXITED') exitCount++;
+    latestStatusMap[log.identityId] = knownNames[log.identityId] || log.name;
+  });
+  Object.values(latestStatusMap).forEach(name => {
+    if (name && name !== 'Unknown') knownPeopleCount++; else unknownPeopleCount++;
+  });
 
-  // ── Status indicator color ─────────────────────────────────────────────────
-  const statusColor = isLive ? '#22c55e' : postSessionSummary ? '#c7a27c' : '#6b7280';
-
-  // ─────────────────────────────────────────────────────────────────────────
-  //  Render
-  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="ftd-root">
-
-      {/* ── Dashboard Header ── */}
-      <div className="ftd-header">
-        <div className="ftd-header-left">
-          <div className="ftd-header-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </div>
+    <div className="min-h-screen text-gray-100 font-mono">
+      <div className="max-w-[1600px] mx-auto w-full p-4 lg:p-6 flex flex-col h-full">
+        <header className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="ftd-header-title">Face Tracking Dashboard</h1>
-            <p className="ftd-header-sub">Real-time detection · Recognition · Session analytics</p>
+            <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-3 uppercase">
+              <Activity className="text-[#e3e3cb]" size={32} />
+              Live Tracking Panel
+            </h1>
+            <p className="text-zinc-500 mt-1 font-bold uppercase tracking-wider text-[11px]">Real-time detection • Recognition • Session analytics</p>
           </div>
-        </div>
+          <div className="flex items-center gap-4">
+             <div className={`px-4 py-2 rounded-sm border shadow-lg flex items-center gap-2 font-bold text-sm transition-all uppercase tracking-wider ${isLive ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-[#0c0c0c] border-zinc-800 text-zinc-500'}`}>
+                <span className={`w-2.5 h-2.5 rounded-full ${isLive ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-700'}`} />
+                {systemStatus}
+                {isProcessing && <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="ml-2 w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-500 rounded-sm" />}
+             </div>
+          </div>
+        </header>
 
-        {/* Status pill */}
-        <div className="ftd-status-pill" style={{ borderColor: statusColor + '55', background: statusColor + '11' }}>
-          <span className="ftd-status-dot" style={{ background: statusColor }} />
-          <span className="ftd-status-text" style={{ color: statusColor }}>{systemStatus}</span>
-          {isProcessing && <span className="ftd-spinner" />}
-        </div>
-      </div>
-
-      {/* ── View Tabs ── */}
-      <div className="ftd-tab-bar" role="tablist" aria-label="Dashboard sections">
-        <button
-          id="ftd-tab-live"
-          role="tab"
-          className={`ftd-tab ${view === 'live' ? 'active' : ''}`}
-          onClick={() => setView('live')}
-          aria-selected={view === 'live'}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-          Live Session
-          {isLive && <span className="ftd-tab-live-dot" />}
-        </button>
-
-        {postSessionSummary && (
-          <button
-            id="ftd-tab-post-session"
-            role="tab"
-            className={`ftd-tab ${view === 'post-session' ? 'active' : ''}`}
-            onClick={() => setView('post-session')}
-            aria-selected={view === 'post-session'}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-            </svg>
-            Session Summary
-          </button>
-        )}
-
-        <button
-          id="ftd-tab-history"
-          role="tab"
-          className={`ftd-tab ${view === 'history' ? 'active' : ''}`}
-          onClick={() => setView('history')}
-          aria-selected={view === 'history'}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Analysis History
-          {historicalSessions.length > 0 && (
-            <span className="ftd-tab-count">{historicalSessions.length}</span>
+        {/* Navigation Tabs */}
+        <div className="flex gap-2 mb-6 border-b border-zinc-800 pb-4">
+          <button onClick={() => setView('live')} className={`px-5 py-2.5 rounded-sm font-bold uppercase tracking-wider transition-all text-xs ${view === 'live' ? 'bg-[#e3e3cb] text-zinc-950 shadow-md shadow-[#e3e3cb]/10' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>Live Session</button>
+          {postSessionSummary && (
+            <button onClick={() => setView('post-session')} className={`px-5 py-2.5 rounded-sm font-bold uppercase tracking-wider transition-all text-xs ${view === 'post-session' ? 'bg-[#e3e3cb] text-zinc-950 shadow-md shadow-[#e3e3cb]/10' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>Session Summary</button>
           )}
-        </button>
-      </div>
-
-      {/* ────────────────────────────────────────────────────────
-          LIVE SESSION VIEW
-          Only shows the camera + current session log.
-          No historical data visible here whatsoever.
-       ─────────────────────────────────────────────────────── */}
-      {view === 'live' && (
-        <div className="ftd-live-layout">
-
-          {/* Camera panel */}
-          <div className="ftd-camera-panel">
-            <CameraOverlay
-              webcamRef={webcamRef}
-              detectedFaces={detectedFaces}
-              isLive={isLive}
-              containerRef={containerRef}
-              faceLabelInputs={faceLabelInputs}
-              onFaceLabelChange={handleFaceLabelChange}
-              onFaceLabelSave={handleFaceLabelSave}
-              nameFeedback={nameFeedback}
-            />
-
-            {/* Session controls */}
-            <div className="ftd-session-controls">
-              {!isLive ? (
-                <button
-                  className="ftd-btn-start"
-                  onClick={handleStartSession}
-                  id="ftd-start-session"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
-                  </svg>
-                  Start Live Session
-                </button>
-              ) : (
-                <div className="ftd-active-controls">
-                  <div className="ftd-session-timer">
-                    <span className="ftd-timer-dot" />
-                    Session Active
-                  </div>
-                  <div className="ftd-stats-bar">
-                    <div className="ftd-stat-chip">
-                      <span className="ftd-stat-chip-val" style={{ color: '#60a5fa' }}>
-                        {detectedFaces.length}
-                      </span>
-                      <span className="ftd-stat-chip-label">In Frame</span>
-                    </div>
-                    <div className="ftd-stat-chip">
-                      <span className="ftd-stat-chip-val" style={{ color: '#34d399' }}>
-                        {Object.keys(knownNames).length}
-                      </span>
-                      <span className="ftd-stat-chip-label">Named</span>
-                    </div>
-                    <div className="ftd-stat-chip">
-                      <span className="ftd-stat-chip-val" style={{ color: '#c7a27c' }}>
-                        {sessionLogs.length}
-                      </span>
-                      <span className="ftd-stat-chip-label">Events</span>
-                    </div>
-                  </div>
-                  <button
-                    className="ftd-btn-end"
-                    onClick={handleEndSession}
-                    id="ftd-end-session"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" stroke="none" />
-                    </svg>
-                    End Live Session
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Live session log — current session ONLY */}
-          <LiveSessionLog
-            sessionLogs={sessionLogs}
-            detectedFaces={detectedFaces}
-            knownNames={knownNames}
-          />
+          <button onClick={() => setView('history')} className={`px-5 py-2.5 rounded-sm font-bold uppercase tracking-wider transition-all text-xs ${view === 'history' ? 'bg-[#e3e3cb] text-zinc-950 shadow-md shadow-[#e3e3cb]/10' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>Analysis History</button>
         </div>
-      )}
 
-      {/* ────────────────────────────────────────────────────────
-          POST-SESSION VIEW
-          Shown immediately after ending session.
-          Displays ONLY data from the just-ended session.
-       ─────────────────────────────────────────────────────── */}
-      {view === 'post-session' && postSessionSummary && (
-        <PostSessionSummary
-          summary={postSessionSummary}
-          onViewHistory={() => setView('history')}
-          onStartNew={() => {
-            setView('live');
-            setPostSessionSummary(null);
-          }}
-        />
-      )}
+        <div className="flex-1 min-h-0">
+          {view === 'live' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-[700px]">
+              <div className="lg:col-span-8 flex flex-col gap-6">
+                <div className="relative group">
+                   <CameraOverlay webcamRef={webcamRef} detectedFaces={detectedFaces} isLive={isLive} containerRef={containerRef} knownNames={knownNames} faceLabelInputs={faceLabelInputs} onFaceLabelChange={handleFaceLabelChange} onFaceLabelSave={handleFaceLabelSave} nameFeedback={nameFeedback} handleStartSession={handleStartSession} />
+                </div>
+                
+                {/* Controls Bar */}
+                {isLive && (
+                  <div className="flex justify-center items-center gap-4 bg-gray-900/60 p-4 rounded-sm border border-zinc-800 shadow-xl">
+                    <button onClick={() => setIsPaused(!isPaused)} className={`px-6 py-3 rounded-sm font-bold flex items-center gap-2 transition-all shadow-lg ${isPaused ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50 hover:bg-amber-500/30' : 'bg-gray-800 hover:bg-gray-700 text-white border border-zinc-800'}`}>
+                      {isPaused ? <Play fill="currentColor" size={18} /> : <Square fill="currentColor" size={18} />} {isPaused ? 'Resume Tracking' : 'Pause Tracking'}
+                    </button>
+                    <button onClick={handleEndSession} className="bg-rose-600/90 backdrop-blur-md border border-rose-500/50 hover:bg-rose-500 text-white px-6 py-3 rounded-sm font-bold flex items-center gap-2 shadow-lg shadow-rose-500/30 transition-all hover:scale-105 active:scale-95">
+                      <Square fill="currentColor" size={18} /> End Session
+                    </button>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <StatCard icon={Activity} label="Total Detections" value={totalDetections} colorClass="border-blue-500" />
+                  <StatCard icon={Users} label="Unique People" value={uniquePeople} colorClass="border-purple-500" />
+                  <StatCard icon={UserCheck} label="Known People" value={knownPeopleCount} colorClass="border-emerald-500" />
+                  <StatCard icon={UserX} label="Unknown People" value={unknownPeopleCount} colorClass="border-rose-500" />
+                  <StatCard icon={LogIn} label="Total Entries" value={entryCount} colorClass="border-cyan-500" />
+                  <StatCard icon={LogOut} label="Total Exits" value={exitCount} colorClass="border-orange-500" />
+                </div>
+              </div>
+              
+              <div className="lg:col-span-4 flex flex-col gap-6 h-[800px] lg:h-auto lg:max-h-[calc(100vh-14rem)]">
+                 <DetectedPersonsList detectedFaces={detectedFaces} knownNames={knownNames} />
+                 <EventsPanel sessionLogs={sessionLogs} knownNames={knownNames} />
+                 <HistoryTimeline sessionLogs={sessionLogs} knownNames={knownNames} />
+              </div>
+            </div>
+          )}
 
-      {/* ────────────────────────────────────────────────────────
-          ANALYSIS HISTORY VIEW
-          Completely separate — all historical sessions.
-          Fault-tolerant inline editing for every tracked entry.
-       ─────────────────────────────────────────────────────── */}
-      {view === 'history' && (
-        <AnalysisHistoryView
-          historicalSessions={historicalSessions}
-          onEditHistoryName={handleEditHistoryName}
-        />
-      )}
-
+          {view === 'post-session' && postSessionSummary && <PostSessionSummary summary={postSessionSummary} onViewHistory={() => setView('history')} onStartNew={() => { setView('live'); setPostSessionSummary(null); }} />}
+          {view === 'history' && <AnalysisHistoryView historicalSessions={historicalSessions} onEditHistoryName={() => {}} />}
+        </div>
+      </div>
     </div>
   );
 };

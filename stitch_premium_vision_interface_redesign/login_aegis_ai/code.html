@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aetheris AI | Secure Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#24342b",
+                        "tertiary-container": "#d5e7da",
+                        "on-secondary-fixed-variant": "#444655",
+                        "surface-container-lowest": "#0e0e0e",
+                        "tertiary-fixed": "#d5e7da",
+                        "secondary-container": "#464858",
+                        "primary-fixed": "#e4e4cc",
+                        "surface": "#131313",
+                        "on-primary-fixed": "#1b1d0e",
+                        "on-background": "#e5e2e1",
+                        "inverse-primary": "#5e604d",
+                        "on-secondary-fixed": "#191b29",
+                        "surface-container": "#201f1f",
+                        "on-primary": "#303221",
+                        "outline-variant": "#47473f",
+                        "secondary": "#c5c5d8",
+                        "primary-container": "#e4e4cc",
+                        "on-tertiary-container": "#58685e",
+                        "on-secondary-container": "#b6b7ca",
+                        "on-tertiary-fixed-variant": "#3a4a41",
+                        "secondary-fixed-dim": "#c5c5d8",
+                        "inverse-on-surface": "#313030",
+                        "surface-container-high": "#2a2a2a",
+                        "tertiary-fixed-dim": "#b9cbbe",
+                        "on-surface-variant": "#c8c7bc",
+                        "on-secondary": "#2e2f3e",
+                        "background": "#131313",
+                        "on-primary-container": "#646652",
+                        "primary": "#ffffff",
+                        "error": "#ffb4ab",
+                        "surface-variant": "#353534",
+                        "surface-dim": "#131313",
+                        "surface-bright": "#3a3939",
+                        "on-error-container": "#ffdad6",
+                        "surface-container-low": "#1c1b1b",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#c8c8b0",
+                        "surface-tint": "#c8c8b0",
+                        "surface-container-highest": "#353534",
+                        "secondary-fixed": "#e1e1f5",
+                        "outline": "#929187",
+                        "on-tertiary-fixed": "#0f1f16",
+                        "on-surface": "#e5e2e1",
+                        "inverse-surface": "#e5e2e1",
+                        "on-error": "#690005",
+                        "tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#474836"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "40px",
+                        "2xl": "64px",
+                        "xs": "4px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "display": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "label-md": ["13px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                        "body-md": ["15px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #0B0B0B;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .glass-card {
+            background: rgba(18, 18, 18, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .inner-glow {
+            position: relative;
+        }
+
+        .inner-glow::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 0.5px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+        }
+
+        .mesh-background {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(228, 228, 204, 0.03) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(228, 228, 204, 0.02) 0%, transparent 40%);
+            z-index: -1;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #BCCEC1;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 8px #BCCEC1;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.7; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.7; }
+        }
+
+        .custom-checkbox:checked {
+            background-color: #F5F5DC;
+            border-color: #F5F5DC;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- Top Navigation (Shell Implementation) -->
+<header class="fixed top-0 w-full z-50">
+<nav class="flex justify-between items-center h-20 px-margin w-full max-w-full bg-background/70 backdrop-blur-xl border-b border-white/10">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">shield</span>
+<span class="font-display text-headline-md tracking-tight text-primary">Aetheris AI</span>
+</div>
+<div class="hidden md:flex gap-lg items-center">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Enterprise</a>
+<button class="bg-primary-container text-on-primary-container px-lg py-sm rounded-lg font-label-md text-label-md hover:bg-white transition-all duration-300 active:scale-95">
+                    Request Access
+                </button>
+</div>
+</nav>
+</header>
+<!-- Main Content Area -->
+<main class="relative flex-grow w-full flex items-center justify-center pt-24 pb-12">
+<div class="mesh-background"></div>
+<!-- Animated Background Ornament (Subtle Node Lines) -->
+<div class="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
+<div class="absolute top-1/4 left-1/4 w-px h-64 bg-gradient-to-b from-transparent via-primary-fixed to-transparent rotate-45 transform"></div>
+<div class="absolute bottom-1/4 right-1/3 w-px h-96 bg-gradient-to-b from-transparent via-primary-fixed to-transparent -rotate-12 transform"></div>
+</div>
+<section class="w-full max-w-md px-md">
+<div class="glass-card inner-glow rounded-xl p-xl flex flex-col gap-lg">
+<!-- Branding Header -->
+<div class="text-center flex flex-col items-center gap-sm">
+<div class="w-16 h-16 rounded-full bg-primary-fixed/10 flex items-center justify-center mb-base border border-primary-fixed/20">
+<span class="material-symbols-outlined text-primary-fixed text-4xl" style="font-variation-settings: 'FILL' 1;">science</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-primary tracking-tight">Welcome back</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Sign in to your neural gateway.</p>
+</div>
+<!-- Login Form -->
+<form class="flex flex-col gap-md" onsubmit="return false">
+<div class="space-y-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider" for="email">Enterprise Email</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant text-body-lg">mail</span>
+<input class="w-full bg-background border border-white/10 rounded-lg py-md pl-12 pr-md text-primary font-body-md placeholder:text-on-surface-variant/40 focus:ring-0 focus:border-primary-fixed transition-all duration-300" id="email" placeholder="name@company.com" type="email"/>
+</div>
+</div>
+<div class="space-y-xs">
+<div class="flex justify-between items-center">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider" for="password">Password</label>
+<a class="font-label-sm text-label-sm text-primary-fixed-dim hover:text-primary-fixed transition-colors" href="#">Forgot?</a>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant text-body-lg">lock</span>
+<input class="w-full bg-background border border-white/10 rounded-lg py-md pl-12 pr-md text-primary font-body-md placeholder:text-on-surface-variant/40 focus:ring-0 focus:border-primary-fixed transition-all duration-300" id="password" placeholder="••••••••" type="password"/>
+</div>
+</div>
+<div class="flex items-center gap-sm">
+<input class="custom-checkbox w-4 h-4 bg-background border-white/20 rounded focus:ring-0 transition-colors" id="remember" type="checkbox"/>
+<label class="font-label-md text-label-md text-on-surface-variant cursor-pointer" for="remember">Stay authenticated for 30 days</label>
+</div>
+<button class="w-full bg-primary-fixed text-on-primary-fixed py-md rounded-lg font-headline-md text-label-md hover:bg-white transition-all duration-300 transform active:scale-[0.98] mt-sm">
+                        Sign In
+                    </button>
+</form>
+<!-- Divider -->
+<div class="relative flex items-center py-base">
+<div class="flex-grow border-t border-white/5"></div>
+<span class="flex-shrink mx-md font-label-sm text-label-sm text-on-surface-variant/50">OR SECURE SSO</span>
+<div class="flex-grow border-t border-white/5"></div>
+</div>
+<!-- SSO Actions -->
+<div class="grid grid-cols-2 gap-md">
+<button class="flex items-center justify-center gap-sm bg-white/5 border border-white/10 py-sm rounded-lg hover:bg-white/10 transition-all active:scale-95">
+<img class="w-5 h-5" data-alt="A clean, minimalist logo of Google G on a transparent background, high resolution icon style for a professional dark UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnLgVgmYpjikyaDCD5eByc1-csVYLTpwtuJvutlto8cctMOBQh_cngF3ijPvWnwjVvswLXabNAIfQQcpL94yecvx2T2dWJSWj1Jp54wpup1X6jifan9QvRwreR_Bq78lvtHJl4MLJ0TmClY7zs1px-nr1Rx_t_ADOS9fHuXDRJZTekzeljEt1shSo4Pp45UeS_zt6aByVTo9ylPJOnPbiWcmHBdNKPU8Byv2YNnmwbmpzPkJNaaPVruLoE0XvFKriD8rd2VhOATqne"/>
+<span class="font-label-md text-label-md text-primary">Google</span>
+</button>
+<button class="flex items-center justify-center gap-sm bg-white/5 border border-white/10 py-sm rounded-lg hover:bg-white/10 transition-all active:scale-95">
+<img class="w-5 h-5" data-alt="A clean, minimalist white GitHub octopus logo on a transparent background, high resolution icon style for a professional dark UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdUmp7gsF4_ZlodDcCxX598RYIZckaY2FIC55WHXA_SxNIoIJcp6tNMFVVX2qReJ6glMqbPYjHEHcatIVFGAXAWwqqpCEZM_9Bk45MyupB7X_2Z-IKhbfbYfTCLZOxSVuqNvBpxZjG8A1LNPR3llaPXWHOoGt7hVYEYLmppStbF5iIt2ipRbhMXqTsj02Cc9IxYhUtEyrD-ykLzx_8iCoNgCWcxY6DRZdp1dwZHZaxDRPA49MaSHKkM1vOBIKRGPViChywr5Qodh1E"/>
+<span class="font-label-md text-label-md text-primary">GitHub</span>
+</button>
+</div>
+</div>
+<!-- Footer Badge -->
+<div class="mt-lg flex justify-center items-center">
+<div class="px-md py-sm rounded-full bg-white/5 border border-white/10 flex items-center gap-xs">
+<span class="pulse-dot"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">SECURED BY AEGIS-V4 ENGINE</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer (Shell Implementation) -->
+<footer class="w-full py-xl bg-background border-t border-white/5">
+<div class="flex flex-col md:flex-row justify-between items-center px-margin space-y-md md:space-y-0">
+<div class="flex items-center gap-sm">
+<span class="font-display text-label-md text-primary">Aetheris AI</span>
+<span class="font-label-md text-label-md text-on-surface-variant">© 2024 Aetheris Enterprise. Secured by Neural-Shield.</span>
+</div>
+<div class="flex gap-lg">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary hover:underline transition-all" href="#">Terms of Service</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary hover:underline transition-all" href="#">Privacy Policy</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary hover:underline transition-all" href="#">Security Compliance</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary hover:underline transition-all" href="#">Status</a>
+</div>
+</div>
+</footer>
+<script>
+        // Micro-interaction for input fields
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.parentElement.querySelector('label').classList.replace('text-on-surface-variant', 'text-primary-fixed');
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.parentElement.querySelector('label').classList.replace('text-primary-fixed', 'text-on-surface-variant');
+            });
+        });
+    </script>
+</body></html>

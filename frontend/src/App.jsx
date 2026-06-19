@@ -9,11 +9,30 @@ import FaceGalleryPage from './pages/FaceGalleryPage';
 import LiveStreamPage from './pages/LiveStreamPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import NotificationsPage from './pages/NotificationsPage';
+
+// Routes that don't need sidebar/topnav and don't require auth
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('vv_token');
   if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  // Basic token expiry check (JWT payload is base64 encoded)
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      localStorage.removeItem('vv_token');
+      localStorage.removeItem('vv_user');
+      return <Navigate to="/login" replace />;
+    }
+  } catch {
+    // If token is malformed, clear it and redirect
+    localStorage.removeItem('vv_token');
+    localStorage.removeItem('vv_user');
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -21,16 +40,20 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   const location = useLocation();
-  const isLoginPage = location.pathname === '/login';
+  const isPublicPage = PUBLIC_PATHS.some(p => location.pathname.startsWith(p));
 
   return (
     <div className="min-h-screen flex text-white font-mono" style={{ background: 'radial-gradient(circle at center, #0c101b 0%, #030407 100%) fixed' }}>
       <Toaster />
-      
-      {isLoginPage ? (
+
+      {isPublicPage ? (
+        // Public pages: full-width, no sidebar/topnav
         <div className="w-full">
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ForgotPasswordPage />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>

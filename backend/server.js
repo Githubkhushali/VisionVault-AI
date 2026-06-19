@@ -9,11 +9,28 @@ const db = require("./db-postgres");
 const notificationService = require("./services/notificationService");
 const emailService = require("./services/emailService");
 
-// ── App Setup ─────────────────────────────────────────────────
+// ── App Setup ─────────────────────────────────────────────
 const app = express();
 const PORT = process.env.PORT || 5005;
 
-app.use(cors());
+// ── Startup Env-Var Checklist ─────────────────────────────
+console.log('[Startup] Checking required environment variables...');
+const REQUIRED_ENV_VARS = ['JWT_SECRET', 'DATABASE_URL'];
+const OPTIONAL_ENV_VARS = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'S3_BUCKET_NAME', 'SES_FROM_EMAIL', 'SES_TO_EMAIL'];
+REQUIRED_ENV_VARS.forEach(v => {
+  if (!process.env[v]) console.error(`[Startup] ❌ MISSING required env var: ${v} — application may not function correctly!`);
+  else console.log(`[Startup] ✅ ${v} is set`);
+});
+OPTIONAL_ENV_VARS.forEach(v => {
+  if (!process.env[v]) console.warn(`[Startup] ⚠️  Optional env var not set: ${v}`);
+});
+
+app.use(cors({
+  origin: true,           // reflect the request origin
+  credentials: true,      // allow cookies / auth headers
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}));
 app.use(express.json());
 
 // ── Mount Modular Routes ──────────────────────────────────────
@@ -494,6 +511,24 @@ app.listen(PORT, () => {
   console.log(`  ║   VisionVault-AI Backend Running     ║`);
   console.log(`  ║   http://localhost:${PORT}              ║`);
   console.log(`  ╚══════════════════════════════════════╝\n`);
+});
+
+// ── Global Error Handler (must be LAST middleware) ───────────
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const ts = new Date().toISOString();
+  console.error(`[${ts}] [GlobalErrorHandler] Unhandled error on ${req.method} ${req.path}:`);
+  console.error('  Message:', err.message);
+  console.error('  Stack:', err.stack);
+
+  // Don't expose stack traces in production
+  const isDev = process.env.NODE_ENV !== 'production';
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'An unexpected server error occurred. Please try again.',
+    path: req.path,
+    ...(isDev ? { stack: err.stack, detail: err.detail } : {})
+  });
 });
 
 // ── Serve React/Vite frontend static build ────────────────────

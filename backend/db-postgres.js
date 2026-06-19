@@ -184,6 +184,7 @@ const initDb = async () => {
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(100) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
+        username VARCHAR(100) UNIQUE,
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         role VARCHAR(50) DEFAULT 'VIEWER',
@@ -191,6 +192,8 @@ const initDb = async () => {
         last_login TIMESTAMP
       );
     `);
+    // Safe migration: add username column if it was created without it
+    await query.run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100) UNIQUE;`);
 
     // 11. Login Sessions table
     await query.run(`
@@ -200,6 +203,18 @@ const initDb = async () => {
         device TEXT,
         ip_address VARCHAR(50),
         login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 12a. Password Reset Tokens table (for forgot-password flow)
+    await query.run(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(200) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
@@ -236,10 +251,13 @@ const initDb = async () => {
       const bcrypt = require('bcrypt');
       const defaultHash = await bcrypt.hash('admin123', 10);
       await query.run(
-        'INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)',
-        ['user_default_admin', 'System Administrator', 'admin@visionvault.local', defaultHash, 'ADMIN']
+        'INSERT INTO users (id, name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)',
+        ['user_default_admin', 'System Administrator', 'admin', 'admin@visionvault.local', defaultHash, 'ADMIN']
       );
-      console.log("[Database] Default ADMIN user created (admin@visionvault.local / admin123)");
+      console.log('[Database] ✅ Default ADMIN user created:');
+      console.log('[Database]   Email:    admin@visionvault.local');
+      console.log('[Database]   Username: admin');
+      console.log('[Database]   Password: admin123');
     }
 
     console.log("[Database] Connected successfully to PostgreSQL database. All tables verified.");

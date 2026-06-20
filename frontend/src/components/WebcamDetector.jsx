@@ -79,12 +79,31 @@ const WebcamDetector = () => {
         }
     }, []);
 
+    // Use a ref to hold the latest captureAndSend function to avoid stale closures in setInterval
+    const captureAndSendRef = useRef(null);
+
     // ── Capture frame → send to AI → update UI ────────────────
-    const captureAndSend = async () => {
-        if (!webcamRef.current || cameraMode !== 'SCANNING') return;
+    const captureAndSend = useCallback(async () => {
+        if (!webcamRef.current) {
+            console.log('[Webcam] Skipping frame: videoRef not ready.');
+            return;
+        }
+        if (cameraMode !== 'SCANNING') {
+            console.log('[Webcam] Skipping frame: cameraMode is', cameraMode);
+            return;
+        }
+        if (isProcessing) {
+            console.log('[Webcam] Skipping frame: previous frame still processing.');
+            return;
+        }
 
         const imageSrc = webcamRef.current.getScreenshot();
-        if (!imageSrc) return;
+        if (!imageSrc) {
+            console.log('[Webcam] Skipping frame: getScreenshot returned null.');
+            return;
+        }
+
+        console.log('[Webcam] Capturing frame for analysis...');
 
         const changed = await hasSceneChanged(imageSrc);
         if (isLockedRef.current && !changed) return;  // skip static frames
@@ -96,6 +115,7 @@ const WebcamDetector = () => {
 
         setIsProcessing(true);
         setSystemStatus('Analyzing...');
+        console.log('[Webcam] Sending frame to backend (/api/stream-frame)...');
 
         try {
             const token = localStorage.getItem('vv_token') || localStorage.getItem('token');
@@ -105,6 +125,7 @@ const WebcamDetector = () => {
                 body: formData 
             });
             const data = await res.json();
+            console.log('[Webcam] Response received:', data);
 
             if (data.success) {
                 const detections = data.detections || [];
@@ -145,12 +166,17 @@ const WebcamDetector = () => {
                 }
             }
         } catch (err) {
-            console.error('[Webcam Stream Error]', err);
+            console.error('[Webcam Stream Error] Pipeline failed:', err);
             setSystemStatus('⚠️ Pipeline Error');
         } finally {
             setIsProcessing(false);
         }
-    };
+    }, [cameraMode, isProcessing, knownNames]); // Add dependencies
+
+    // Keep the ref updated with the latest function
+    useEffect(() => {
+        captureAndSendRef.current = captureAndSend;
+    }, [captureAndSend]);
 
     // ── Register a name for an identity ──────────────────────
     const handleRegisterName = async (identityId) => {
@@ -184,8 +210,12 @@ const WebcamDetector = () => {
     // ── Camera mode effects ───────────────────────────────────
     useEffect(() => {
         if (cameraMode === 'SCANNING') {
+            console.log('[Webcam] Interval started (500ms)');
             setSystemStatus('🔍 Scanning...');
-            intervalRef.current = setInterval(captureAndSend, 2000);
+            // Call via the ref so we always use the latest version of the function
+            intervalRef.current = setInterval(() => {
+                if (captureAndSendRef.current) captureAndSendRef.current();
+            }, 500);
             fetchMovements();
             movementsIntervalRef.current = setInterval(fetchMovements, 5000);
         } else if (cameraMode === 'PAUSED') {
@@ -326,6 +356,8 @@ const WebcamDetector = () => {
                     ref={webcamRef}
                     audio={false}
                     screenshotFormat="image/jpeg"
+                    onUserMedia={() => console.log('[Webcam] Camera stream acquired successfully.')}
+                    onUserMediaError={(err) => console.error('[Webcam] Camera stream error:', err)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     videoConstraints={{ width: 640, height: 480, facingMode: 'user' }}
                 />

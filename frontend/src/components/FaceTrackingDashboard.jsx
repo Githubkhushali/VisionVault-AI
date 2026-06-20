@@ -607,6 +607,18 @@ const FaceTrackingDashboard = () => {
   const [systemStatus, setSystemStatus] = useState('System Offline');
   const [postSessionSummary, setPostSessionSummary] = useState(null);
   const [historicalSessions, setHistoricalSessions] = useState([]);
+  const [cameraFailures, setCameraFailures] = useState(0);
+
+  useEffect(() => {
+    console.log('[SecureContext]', window.isSecureContext);
+    console.log('[MediaDevices]', navigator.mediaDevices);
+  }, []);
+
+  useEffect(() => {
+    if (cameraFailures >= 6) {
+      setSystemStatus('Camera access unavailable. HTTPS is required.');
+    }
+  }, [cameraFailures]);
 
   const webcamRef = useRef(null);
   const containerRef = useRef(null);
@@ -643,7 +655,9 @@ const FaceTrackingDashboard = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
       if (webcamRef.current) webcamRef.current.srcObject = stream;
+      console.log('[Camera] Stream acquired:', stream);
     } catch (err) {
+      console.error('[Camera] getUserMedia failed:', err?.name, err?.message);
       console.error('[FTD] Camera access denied:', err);
       setSystemStatus('⚠️ Camera access denied');
     }
@@ -659,7 +673,13 @@ const FaceTrackingDashboard = () => {
   const captureAndSend = useCallback(async () => {
     if (!webcamRef.current || !isLive) return;
     const video = webcamRef.current;
-    if (video.readyState < 2) return;
+
+    console.log('[Camera] readyState:', video.readyState);
+
+    if (video.readyState < 2) {
+      setCameraFailures(prev => prev + 1);
+      return;
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 640;
@@ -668,6 +688,13 @@ const FaceTrackingDashboard = () => {
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
     const imageSrc = canvas.toDataURL('image/jpeg', 0.85);
+
+    if (!imageSrc || imageSrc === 'data:,') {
+       setCameraFailures(prev => prev + 1);
+       return;
+    }
+
+    setCameraFailures(0); // Reset failure counter on valid frame
 
     const changed = await hasSceneChanged(imageSrc);
     if (isLockedRef.current && !changed) return;

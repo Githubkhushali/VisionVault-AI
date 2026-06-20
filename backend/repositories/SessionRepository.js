@@ -4,14 +4,13 @@ class SessionRepository {
   /**
    * Saves a new session to the database
    */
-  async saveSession(sessionData) {
+  async saveSession(sessionData, userId = null) {
     const { sessionId, startTime, endTime, s3Url, totalEntries, totalExits, uniqueFacesCount } = sessionData;
     
-    // Save live stream session
     await db.run(
       `INSERT INTO live_stream_sessions
-         (id, started_at, ended_at, duration_ms, total_entries, total_exits, unique_faces_count, s3_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, started_at, ended_at, duration_ms, total_entries, total_exits, unique_faces_count, s3_url, user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sessionId,
         new Date(startTime).toISOString(),
@@ -20,7 +19,8 @@ class SessionRepository {
         totalEntries,
         totalExits,
         uniqueFacesCount,
-        s3Url
+        s3Url,
+        userId || sessionData.userId || null
       ]
     );
 
@@ -28,11 +28,17 @@ class SessionRepository {
   }
 
   /**
-   * Gets all sessions (both upload and live streams combined)
+   * Gets sessions scoped to a user (or all if admin)
    */
-  async getAllSessions() {
-    const sessions = await db.all(`
-      SELECT * FROM (
+  async getAllSessions(userId = null, isAdmin = false) {
+    // Build WHERE clause for user scoping
+    const userFilter = (!isAdmin && userId)
+      ? `WHERE user_id = '${userId}'`   // parameterized below in sub-queries
+      : '';
+    const userParam = (!isAdmin && userId) ? userId : null;
+
+    const sessions = await db.all(
+      `SELECT * FROM (
         SELECT 
           id,
           filename,
@@ -44,8 +50,10 @@ class SessionRepository {
           people_count as "peopleCount",
           face_count as "faceCount",
           unique_identities_count as "uniqueIdentitiesCount",
-          ROUND(average_confidence * 100, 1) as "averageConfidence"
+          ROUND(average_confidence * 100, 1) as "averageConfidence",
+          user_id as "userId"
         FROM sessions
+        ${!isAdmin && userId ? 'WHERE user_id = ?' : ''}
 
         UNION ALL
 
@@ -60,11 +68,14 @@ class SessionRepository {
           unique_faces_count as "peopleCount",
           unique_faces_count as "faceCount",
           unique_faces_count as "uniqueIdentitiesCount",
-          0 as "averageConfidence"
+          0 as "averageConfidence",
+          user_id as "userId"
         FROM live_stream_sessions
+        ${!isAdmin && userId ? 'WHERE user_id = ?' : ''}
       ) AS combined
-      ORDER BY sort_time DESC;
-    `);
+      ORDER BY sort_time DESC;`,
+      userParam ? [userParam, userParam] : []
+    );
 
     // Fetch sub-items for each session
     for (const session of sessions) {

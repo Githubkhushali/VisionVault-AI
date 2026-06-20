@@ -41,12 +41,12 @@ class IdentityRepository {
   /**
    * Save faces for a live stream session
    */
-  async saveLiveStreamFaces(sessionId, faceList) {
+  async saveLiveStreamFaces(sessionId, faceList, userId = null) {
     for (const face of faceList) {
       await db.run(
         `INSERT INTO live_stream_faces
-           (session_id, identity_id, appearance_count, s3_url, first_seen, last_seen)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (session_id, identity_id, appearance_count, s3_url, first_seen, last_seen, user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           sessionId,
           face.identityId,
@@ -54,17 +54,17 @@ class IdentityRepository {
           face.s3Url,
           new Date(face.firstSeen).toISOString(),
           new Date(face.lastSeen).toISOString(),
+          userId,
         ]
       );
 
-      // Register or update canonical face URL in identities table
       if (face.identityId) {
         try {
-          const existingIdentity = await db.get(`SELECT id FROM identities WHERE id = ?`, [face.identityId]);
+          const existingIdentity = await db.get(`SELECT id FROM identities WHERE id = ? AND (user_id = ? OR user_id IS NULL)`, [face.identityId, userId]);
           if (!existingIdentity) {
             await db.run(
-              `INSERT INTO identities (id, canonical_face_url, total_appearances) VALUES ($1, $2, $3)`,
-              [face.identityId, face.s3Url, face.appearanceCount]
+              `INSERT INTO identities (id, canonical_face_url, total_appearances, user_id) VALUES ($1, $2, $3, $4)`,
+              [face.identityId, face.s3Url, face.appearanceCount, userId]
             );
           } else {
             await db.run(
@@ -72,12 +72,12 @@ class IdentityRepository {
                SET canonical_face_url = COALESCE(canonical_face_url, $1), 
                    total_appearances = total_appearances + $2, 
                    last_seen = CURRENT_TIMESTAMP 
-               WHERE id = $3`,
-              [face.s3Url, face.appearanceCount, face.identityId]
+               WHERE id = $3 AND (user_id = $4 OR user_id IS NULL)`,
+              [face.s3Url, face.appearanceCount, face.identityId, userId]
             );
           }
         } catch (dbErr) {
-          console.error("[IdentityRepository] Failed to update identities table for", face.identityId, dbErr.message);
+          console.error('[IdentityRepository] Failed to update identities table for', face.identityId, dbErr.message);
         }
       }
     }

@@ -6,14 +6,17 @@ const liveStreamService = require('./LiveStreamService');
 class SessionService {
   /**
    * Terminates the active live session, uploads logs to S3, and persists to DB.
+   * @param {string} userId - The user who owns this session
    */
-  async endLiveSession() {
+  async endLiveSession(userId = null) {
     if (!liveStreamService.active) {
-      throw new Error("No active stream session to stop.");
+      throw new Error('No active stream session to stop.');
     }
 
     const sessionData = liveStreamService.getCompiledSessionData();
-    
+    // Use userId from caller, fallback to what was stored in liveStreamService
+    const effectiveUserId = userId || sessionData.userId || null;
+
     // Populate database-saved names in compiled faces list before uploading log to S3
     const db = require('../db-postgres');
     for (const face of sessionData.faces) {
@@ -24,39 +27,39 @@ class SessionService {
         face.name = 'Unknown';
       }
     }
-    
-    // 1. Upload to AWS S3 (Session Termination & AWS S3 Upload Pipeline)
+
+    // 1. Upload to AWS S3 (user-scoped folder)
     let s3Url = null;
     try {
-      s3Url = await s3Service.uploadSessionLog(sessionData, sessionData.sessionId);
+      s3Url = await s3Service.uploadSessionLog(sessionData, sessionData.sessionId, effectiveUserId);
     } catch (err) {
-      console.error("[SessionService] Failed to upload session log to S3:", err);
-      // Optional: rollback or flag error depending on strictness. 
-      // The requirement says "await a successful upload... explicitly handle failures"
-      throw new Error("AWS S3 upload failed. Session not saved.");
+      console.error('[SessionService] Failed to upload session log to S3:', err);
+      throw new Error('AWS S3 upload failed. Session not saved.');
     }
 
-    // Assign generated S3 URL to session data
     sessionData.s3Url = s3Url;
 
-    // 2. Database Persistence
+    // 2. Database Persistence (with user_id)
     try {
-      await sessionRepository.saveSession(sessionData);
-      await identityRepository.saveLiveStreamFaces(sessionData.sessionId, sessionData.faces);
+      await sessionRepository.saveSession(sessionData, effectiveUserId);
+      await identityRepository.saveLiveStreamFaces(sessionData.sessionId, sessionData.faces, effectiveUserId);
     } catch (err) {
-      console.error("[SessionService] DB Persistence failed:", err);
-      throw new Error("Database persistence failed.");
+      console.error('[SessionService] DB Persistence failed:', err);
+      throw new Error('Database persistence failed.');
     }
 
     // 3. Reset in-memory session buffer
     liveStreamService.resetSession();
 
-    // Return exact newly created session object
     return sessionData;
   }
 
-  async getAllHistory() {
-    return await sessionRepository.getAllSessions();
+  /**
+   * @param {string} userId - User ID to scope results (null = all, for admin)
+   * @param {boolean} isAdmin - If true, return all users' sessions
+   */
+  async getAllHistory(userId = null, isAdmin = false) {
+    return await sessionRepository.getAllSessions(userId, isAdmin);
   }
 
   async updateFaceName(identityId, newName) {

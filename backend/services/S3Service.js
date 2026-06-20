@@ -29,30 +29,61 @@ class S3Service {
   /**
    * Upload JSON session payload to S3
    */
-  async uploadSessionLog(logData, sessionId) {
+  /**
+   * Upload a file buffer to a user-scoped S3 folder.
+   * Key format: user_{userId}/{subFolder}/{filename}
+   */
+  async uploadFile(fileBuffer, fileName, mimeType, userId = 'shared', subFolder = 'uploads') {
     if (!this.isAvailable) {
-      console.warn("[S3Service] S3 not configured. Skipping session log upload.");
+      console.warn('[S3Service] S3 not configured. Skipping upload.');
+      return null;
+    }
+    try {
+      const s3Key = `user_${userId}/${subFolder}/${Date.now()}-${fileName}`;
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+        Body: fileBuffer,
+        ContentType: mimeType,
+      });
+      await this.s3.send(command);
+      const s3Url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${s3Key}`;
+      console.log(`[S3Service] File uploaded: ${s3Url}`);
+      return s3Url;
+    } catch (error) {
+      console.error('[S3Service] Failed to upload file:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload JSON session log to user-scoped S3 folder.
+   * Legacy: uploadSessionLog(logData, sessionId) — userId optional for backward compat
+   */
+  async uploadSessionLog(logData, sessionId, userId = 'shared') {
+    if (!this.isAvailable) {
+      console.warn('[S3Service] S3 not configured. Skipping session log upload.');
       return null;
     }
 
     try {
-      const s3Key = `sessions/logs/${sessionId}.json`;
+      const s3Key = `user_${userId}/sessions/${sessionId}.json`;
       const jsonString = JSON.stringify(logData, null, 2);
 
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: s3Key,
         Body: Buffer.from(jsonString, 'utf-8'),
-        ContentType: "application/json",
+        ContentType: 'application/json',
       });
 
       await this.s3.send(command);
       
       const s3Url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${s3Key}`;
-      console.log(`[S3Service] Session log uploaded successfully: ${s3Url}`);
+      console.log(`[S3Service] Session log uploaded: ${s3Url}`);
       return s3Url;
     } catch (error) {
-      console.error("[S3Service] Failed to upload session log:", error.message);
+      console.error('[S3Service] Failed to upload session log:', error.message);
       throw error;
     }
   }

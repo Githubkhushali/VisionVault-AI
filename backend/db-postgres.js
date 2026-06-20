@@ -195,6 +195,30 @@ const initDb = async () => {
     // Safe migration: add username column if it was created without it
     await query.run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100) UNIQUE;`);
 
+    // 10b. Add user_id foreign key to all data tables (multi-user isolation)
+    const userIdTables = [
+      'sessions', 'live_stream_sessions', 'identities', 'detected_faces',
+      'video_history', 'daily_logs', 'persons', 'session_people',
+      'live_stream_faces', 'notifications'
+    ];
+    for (const tbl of userIdTables) {
+      await query.run(`ALTER TABLE ${tbl} ADD COLUMN IF NOT EXISTS user_id VARCHAR(100) REFERENCES users(id) ON DELETE CASCADE;`);
+    }
+
+    // 10c. Performance indexes for user_id lookups
+    const userIdIndexes = [
+      ['idx_sessions_user_id',            'sessions',             'user_id'],
+      ['idx_live_stream_sessions_user_id','live_stream_sessions',  'user_id'],
+      ['idx_identities_user_id',          'identities',           'user_id'],
+      ['idx_detected_faces_user_id',      'detected_faces',       'user_id'],
+      ['idx_daily_logs_user_id',          'daily_logs',           'user_id'],
+      ['idx_persons_user_id',             'persons',              'user_id'],
+      ['idx_notifications_user_id',       'notifications',        'user_id'],
+    ];
+    for (const [idxName, tbl, col] of userIdIndexes) {
+      await query.run(`CREATE INDEX IF NOT EXISTS ${idxName} ON ${tbl}(${col});`);
+    }
+
     // 11. Login Sessions table
     await query.run(`
       CREATE TABLE IF NOT EXISTS login_sessions (

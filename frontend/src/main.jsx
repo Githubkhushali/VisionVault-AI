@@ -14,6 +14,18 @@ axios.interceptors.request.use(config => {
   return config;
 });
 
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('vv_token');
+      localStorage.removeItem('vv_user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Fetch Interceptor for Auth (Monkey patch)
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
@@ -26,7 +38,13 @@ window.fetch = async (...args) => {
       Authorization: `Bearer ${token}`
     };
   }
-  return originalFetch(resource, config);
+  const response = await originalFetch(resource, config);
+  if (response.status === 401) {
+    localStorage.removeItem('vv_token');
+    localStorage.removeItem('vv_user');
+    window.location.href = '/login';
+  }
+  return response;
 };
 
 createRoot(document.getElementById('root')).render(

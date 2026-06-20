@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import NotificationsPage from './pages/NotificationsPage';
+import AdminPage from './pages/AdminPage';
 
 // Routes that don't need sidebar/topnav and don't require auth
 const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
@@ -33,6 +34,22 @@ function ProtectedRoute({ children }) {
     // If token is malformed, clear it and redirect
     localStorage.removeItem('vv_token');
     localStorage.removeItem('vv_user');
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const userStr = localStorage.getItem('vv_user');
+  if (!userStr) {
+    return <Navigate to="/login" replace />;
+  }
+  try {
+    const user = JSON.parse(userStr);
+    if (user.role !== 'ADMIN') {
+      return <Navigate to="/" replace />;
+    }
+  } catch {
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -77,6 +94,7 @@ export default function App() {
                 <Route path="/live-stream" element={<ProtectedRoute><LiveStreamPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+                <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
                 {/* Catch-all → Dashboard */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

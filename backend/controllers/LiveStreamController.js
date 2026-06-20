@@ -8,8 +8,9 @@ const db = require('../db-postgres');
 class LiveStreamController {
   startSession(req, res) {
     try {
-      const sessionId = liveStreamService.startSession();
-      console.log(`[Session] Started: ${sessionId}`);
+      const userId = req.user?.id || null;
+      const sessionId = liveStreamService.startSession(userId);
+      console.log(`[Session] Started: ${sessionId} | user: ${userId}`);
       notificationService.createNotification('LIVE_STREAM_STARTED', 'Live Stream Active', `Session ${sessionId} has begun recording.`, 'INFO');
       res.json({ success: true, sessionId });
     } catch (error) {
@@ -19,11 +20,11 @@ class LiveStreamController {
 
   async endSession(req, res) {
     try {
-      // Endpoint `/api/session/end`
-      const savedSession = await sessionService.endLiveSession();
+      const userId = req.user?.id || null;
+      const savedSession = await sessionService.endLiveSession(userId);
       res.status(200).json({
         success: true,
-        report: savedSession // returning this exact newly created session object
+        report: savedSession
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

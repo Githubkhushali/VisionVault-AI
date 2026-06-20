@@ -1,6 +1,10 @@
 import { useState, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, Bell, HelpCircle, User } from 'lucide-react';
+
+function useCurrentUser() {
+  try { return JSON.parse(localStorage.getItem('vv_user') || 'null'); } catch { return null; }
+}
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -9,13 +13,18 @@ const pageTitles = {
   '/face-gallery': 'Face Gallery',
   '/live-stream': 'Live Stream',
   '/settings': 'System Settings',
+  '/admin': 'Admin Panel',
+  '/notifications': 'Notifications',
 };
 
 export default function TopNav() {
   const location = useLocation();
-  const title = pageTitles[location.pathname] || 'Dashboard';
+  const navigate = useNavigate();
+  const user = useCurrentUser();
+  const title = pageTitles[location.pathname] || 'VisionVault';
   const [searchFocused, setSearchFocused] = useState(false);
   const inputRef = useRef(null);
+  const initials = user?.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : null;
 
   return (
     <header className="fixed top-0 right-0 h-16 z-40 bg-[#050505]/80 backdrop-blur-xl border-b border-zinc-800 shadow-sm flex justify-between items-center px-8"
@@ -64,8 +73,12 @@ export default function TopNav() {
             <HelpCircle size={18} />
           </button>
           {/* Avatar */}
-          <div onClick={() => window.dispatchEvent(new CustomEvent('toast', { detail: { type: 'info', message: 'User profile coming soon!' } }))} className="w-9 h-9 rounded-sm border border-zinc-800 overflow-hidden cursor-pointer hover:border-[#e3e3cb] transition-colors bg-[#e3e3cb]/10 flex items-center justify-center text-[#e3e3cb]">
-            <User size={16} />
+          <div
+            onClick={() => navigate('/settings')}
+            title={user ? `${user.name} (${user.role || 'VIEWER'})` : 'Profile'}
+            className="w-9 h-9 rounded-sm border border-zinc-800 overflow-hidden cursor-pointer hover:border-[#e3e3cb] transition-colors bg-[#e3e3cb]/10 flex items-center justify-center text-[#e3e3cb] font-black text-xs"
+          >
+            {initials || <User size={16} />}
           </div>
         </div>
       </div>

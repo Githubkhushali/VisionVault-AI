@@ -78,17 +78,19 @@ class LiveStreamService {
     this.active = false;
     this.sessionId = null;
     this.startTime = null;
+    this.currentUserId = null;   // user who started the session
     this.faceLog = new Map();
     this.tracker = new ThresholdLineTracker(480, 640);
   }
 
-  startSession() {
+  startSession(userId = null) {
     if (this.active) {
-      throw new Error("Stream session already active.");
+      throw new Error('Stream session already active.');
     }
     this.active = true;
     this.startTime = Date.now();
     this.sessionId = `live_${Date.now()}`;
+    this.currentUserId = userId;   // ← tag session to the user who started it
     this.faceLog.clear();
     this.tracker.reset();
     return this.sessionId;
@@ -130,6 +132,7 @@ class LiveStreamService {
 
     return {
       sessionId: this.sessionId,
+      userId: this.currentUserId,   // ← included in compiled data
       startTime: this.startTime,
       endTime,
       durationMs,
@@ -144,6 +147,7 @@ class LiveStreamService {
     this.active = false;
     const endedId = this.sessionId;
     this.sessionId = null;
+    this.currentUserId = null;
     this.faceLog.clear();
     this.tracker.reset();
     return endedId;

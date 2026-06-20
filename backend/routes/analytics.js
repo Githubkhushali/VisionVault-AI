@@ -15,10 +15,36 @@
  *   daily_logs          – per-person per-day aggregates (written on detection)
  */
 
-const express = require("express");
+const express = require('express');
 const router  = express.Router();
-const db      = require("../db-postgres");
-const s3Service = require("../services/S3Service");
+const db      = require('../db-postgres');
+const s3Service = require('../services/S3Service');
+const { authMiddleware } = require('../middleware/auth');
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  User scoping helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns { clause, params } for scoping a query to the current user.
+ * Admins get no filter (see all). Normal users get WHERE user_id = $N.
+ * @param {object} req - Express request (must have req.user from authMiddleware)
+ * @param {number} paramIndex - Starting $N index for the user_id parameter
+ */
+function userScope(req, paramIndex = 1) {
+  const isAdmin = req.user?.role === 'ADMIN';
+  if (isAdmin) return { clause: '', params: [], isAdmin: true };
+  const userId = req.user?.id;
+  if (!userId) return { clause: 'WHERE 1=0', params: [], isAdmin: false }; // no user, no data
+  return { clause: `WHERE user_id = $${paramIndex}`, params: [userId], isAdmin: false, userId };
+}
+
+/** Same as userScope but uses AND instead of WHERE (for queries that already have a WHERE) */
+function userScopeAnd(req, paramIndex = 1) {
+  const scope = userScope(req, paramIndex);
+  if (scope.clause) scope.clause = scope.clause.replace('WHERE', 'AND');
+  return scope;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Helpers
@@ -45,13 +71,17 @@ const toTimeStr = (ts) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Route: Summary counts
-router.get("/summary", async (req, res) => {
+router.get('/summary', authMiddleware, async (req, res) => {
   try {
-    const sessionsRes    = await db.get(`SELECT COUNT(*) as count FROM sessions`);
-    const identitiesRes  = await db.get(`SELECT COUNT(*) as count FROM identities`);
-    const facesRes       = await db.get(`SELECT COALESCE(SUM(face_count), 0) as count FROM sessions`);
-    const videosRes      = await db.get(`SELECT COUNT(*) as count FROM sessions WHERE type = 'video'`);
-    const imagesRes      = await db.get(`SELECT COUNT(*) as count FROM sessions WHERE type = 'image'`);
+    const scope = userScope(req);
+    const whereClause = scope.clause;
+    const params = scope.params;
+
+    const sessionsRes   = await db.get(`SELECT COUNT(*) as count FROM sessions ${whereClause}`, params);
+    const identitiesRes = await db.get(`SELECT COUNT(*) as count FROM identities ${whereClause}`, params);
+    const facesRes      = await db.get(`SELECT COALESCE(SUM(face_count), 0) as count FROM sessions ${whereClause}`, params);
+    const videosRes     = await db.get(`SELECT COUNT(*) as count FROM sessions ${whereClause}${whereClause ? ' AND' : 'WHERE'} type = 'video'`, params);
+    const imagesRes     = await db.get(`SELECT COUNT(*) as count FROM sessions ${whereClause}${whereClause ? ' AND' : 'WHERE'} type = 'image'`, params);
     res.json({
       totalSessions:       toInt(sessionsRes?.count),
       totalUniquePeople:   toInt(identitiesRes?.count),
@@ -60,25 +90,28 @@ router.get("/summary", async (req, res) => {
       totalImagesAnalyzed: toInt(imagesRes?.count),
     });
   } catch (err) {
-    console.error("[Analytics] summary error:", err.message);
-    res.status(500).json({ error: "Failed to fetch analytics summary." });
+    console.error('[Analytics] summary error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch analytics summary.' });
   }
 });
 
 // Route: Traffic over time
-router.get("/traffic", async (req, res) => {
+router.get('/traffic', authMiddleware, async (req, res) => {
   try {
-    const rows = await db.all(`
-      SELECT
+    const scope = userScope(req);
+    const rows = await db.all(
+      `SELECT
         TO_CHAR(processed_at, 'Mon DD') as date,
         SUM(people_count) as "peopleCount",
         SUM(CASE WHEN type = 'video' THEN 1 ELSE 0 END) as "videoCount",
         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) as "imageCount"
       FROM sessions
+      ${scope.clause}
       GROUP BY TO_CHAR(processed_at, 'Mon DD'), DATE(processed_at)
       ORDER BY DATE(processed_at) ASC
-      LIMIT 15;
-    `);
+      LIMIT 15`,
+      scope.params
+    );
     res.json(rows.map(r => ({
       date:        r.date,
       peopleCount: toInt(r.peopleCount),
@@ -86,16 +119,17 @@ router.get("/traffic", async (req, res) => {
       imageCount:  toInt(r.imageCount),
     })));
   } catch (err) {
-    console.error("[Analytics] traffic error:", err.message);
-    res.status(500).json({ error: "Failed to fetch traffic data." });
+    console.error('[Analytics] traffic error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch traffic data.' });
   }
 });
 
 // Route: Top recurring identities
-router.get("/identities", async (req, res) => {
+router.get('/identities', authMiddleware, async (req, res) => {
   try {
-    const rows = await db.all(`
-      SELECT
+    const scope = userScope(req, 1);
+    const rows = await db.all(
+      `SELECT
         i.id,
         i.canonical_face_url as "canonicalFaceUrl",
         i.total_appearances  as "totalAppearances",
@@ -103,10 +137,12 @@ router.get("/identities", async (req, res) => {
         p.name
       FROM identities i
       LEFT JOIN persons p ON p.identity_id = i.id
+      ${scope.clause ? scope.clause.replace('user_id', 'i.user_id') : ''}
       ORDER BY i.total_appearances DESC, i.last_seen DESC
-      LIMIT 50;
-    `);
-    
+      LIMIT 50`,
+      scope.params
+    );
+
     const preSignedRows = [];
     for (const r of rows) {
       const canonicalFaceUrl = await s3Service.getPresignedUrl(r.canonicalFaceUrl || buildFaceUrl({ identity_id: r.id }));
@@ -119,35 +155,42 @@ router.get("/identities", async (req, res) => {
     }
     res.json(preSignedRows);
   } catch (err) {
-    console.error("[Analytics] identities error:", err.message);
-    res.status(500).json({ error: "Failed to fetch identities data." });
+    console.error('[Analytics] identities error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch identities data.' });
   }
 });
 
 // Route: Average confidence history
-router.get("/confidence", async (req, res) => {
+router.get('/confidence', authMiddleware, async (req, res) => {
   try {
-    const rows = await db.all(`
-      SELECT
+    const scope = userScope(req);
+    const rows = await db.all(
+      `SELECT
         TO_CHAR(processed_at, 'Mon DD') as date,
         ROUND(AVG(average_confidence) * 100, 1) as "averageConfidence"
       FROM sessions
+      ${scope.clause}
       GROUP BY TO_CHAR(processed_at, 'Mon DD'), DATE(processed_at)
       ORDER BY DATE(processed_at) ASC
-      LIMIT 15;
-    `);
+      LIMIT 15`,
+      scope.params
+    );
     res.json(rows.map(r => ({ date: r.date, averageConfidence: toFloat(r.averageConfidence) })));
   } catch (err) {
-    console.error("[Analytics] confidence error:", err.message);
-    res.status(500).json({ error: "Failed to fetch confidence data." });
+    console.error('[Analytics] confidence error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch confidence data.' });
   }
 });
 
-// Route: Paginated upload sessions
-router.get("/sessions", async (req, res) => {
+// Route: Paginated sessions
+router.get('/sessions', authMiddleware, async (req, res) => {
   try {
-    const sessions = await db.all(`
-      SELECT * FROM (
+    const scope = userScope(req);
+    const userWhere = scope.clause;
+    const params = scope.params;
+
+    const sessions = await db.all(
+      `SELECT * FROM (
         SELECT
           id, filename, type, s3_url as "s3Url",
           processed_at as sort_time,
@@ -156,6 +199,7 @@ router.get("/sessions", async (req, res) => {
           face_count as "faceCount", unique_identities_count as "uniqueIdentitiesCount",
           ROUND(average_confidence * 100, 1) as "averageConfidence"
         FROM sessions
+        ${userWhere}
         UNION ALL
         SELECT
           id, 'Live Stream' as filename, 'live' as type, s3_url as "s3Url",
@@ -165,9 +209,11 @@ router.get("/sessions", async (req, res) => {
           unique_faces_count as "faceCount", unique_faces_count as "uniqueIdentitiesCount",
           0 as "averageConfidence"
         FROM live_stream_sessions
+        ${userWhere}
       ) AS combined
-      ORDER BY sort_time DESC;
-    `);
+      ORDER BY sort_time DESC`,
+      params.length ? [...params, ...params] : []
+    );
 
     for (const s of sessions) {
       s.peopleCount          = toInt(s.peopleCount);
@@ -254,39 +300,61 @@ router.get("/sessions", async (req, res) => {
 });
 
 // Route: Update name in persons table
-router.patch("/update-name", async (req, res) => {
+router.patch('/update-name', authMiddleware, async (req, res) => {
   const { identityId, newName } = req.body;
   if (!identityId || !newName) return res.status(400).json({ success: false });
   try {
+    const userId = req.user?.id;
+    const isAdmin = req.user?.role === 'ADMIN';
+    // Verify ownership (non-admins can only rename their own identities)
+    if (!isAdmin) {
+      const identity = await db.get(`SELECT user_id FROM identities WHERE id = ?`, [identityId]);
+      if (identity && identity.user_id && identity.user_id !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied.' });
+      }
+    }
     await db.run(`
       INSERT INTO persons (identity_id, name) VALUES (?, ?)
       ON CONFLICT (identity_id) DO UPDATE SET name = excluded.name
     `, [identityId, newName]);
-    await db.run(`
-      UPDATE daily_logs SET name = ? WHERE person_id = ?
-    `, [newName, identityId]);
+    await db.run(`UPDATE daily_logs SET name = ? WHERE person_id = ?`, [newName, identityId]);
     res.json({ success: true });
   } catch (err) {
-    console.error("[Analytics] update-name error:", err.message);
+    console.error('[Analytics] update-name error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Route: Clear History
-router.delete("/sessions", async (req, res) => {
+// Route: Clear History (scoped to current user; admins clear everything)
+router.delete('/sessions', authMiddleware, async (req, res) => {
   try {
-    await db.run(`DELETE FROM session_people`);
-    await db.run(`DELETE FROM sessions`);
-    await db.run(`DELETE FROM identities`);
-    await db.run(`DELETE FROM detected_faces`);
-    await db.run(`DELETE FROM video_history`);
-    await db.run(`DELETE FROM live_stream_faces`);
-    await db.run(`DELETE FROM live_stream_sessions`);
-    await db.run(`DELETE FROM daily_logs`);
-    res.json({ success: true, message: "History cleared successfully." });
+    const isAdmin = req.user?.role === 'ADMIN';
+    const userId = req.user?.id;
+    if (isAdmin) {
+      // Admin: clear ALL data
+      await db.run(`DELETE FROM session_people`);
+      await db.run(`DELETE FROM sessions`);
+      await db.run(`DELETE FROM identities`);
+      await db.run(`DELETE FROM detected_faces`);
+      await db.run(`DELETE FROM video_history`);
+      await db.run(`DELETE FROM live_stream_faces`);
+      await db.run(`DELETE FROM live_stream_sessions`);
+      await db.run(`DELETE FROM daily_logs`);
+    } else {
+      // Regular user: only delete their own data
+      await db.run(`DELETE FROM session_people WHERE session_id IN (SELECT id FROM sessions WHERE user_id = ?)`, [userId]);
+      await db.run(`DELETE FROM sessions WHERE user_id = ?`, [userId]);
+      await db.run(`DELETE FROM identities WHERE user_id = ?`, [userId]);
+      await db.run(`DELETE FROM detected_faces WHERE user_id = ?`, [userId]);
+      await db.run(`DELETE FROM video_history WHERE user_id = ?`, [userId]);
+      await db.run(`DELETE FROM live_stream_faces WHERE user_id = ?`, [userId]);
+      await db.run(`DELETE FROM live_stream_sessions WHERE user_id = ?`, [userId]);
+      await db.run(`DELETE FROM daily_logs WHERE user_id = ?`, [userId]);
+    }
+    res.json({ success: true, message: 'History cleared successfully.' });
   } catch (err) {
-    console.error("[Analytics] clear history error:", err.message);
-    res.status(500).json({ error: "Failed to clear sessions." });
+    console.error('[Analytics] clear history error:', err.message);
+    res.status(500).json({ error: 'Failed to clear sessions.' });
   }
 });
 
@@ -315,42 +383,47 @@ function buildFaceUrl(row) {
 }
 
 // ── Route: Daily Summary — 4 KPI cards ────────────────────────
-router.get("/daily-summary", async (req, res) => {
+router.get('/daily-summary', authMiddleware, async (req, res) => {
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   try {
-    // Pull all live_stream_faces for sessions on this date (primary source)
-    const liveRows = await db.all(`
-      SELECT
+    const scope = userScope(req, 2);
+    const userAnd = scope.params.length ? `AND lsf.user_id = $2` : '';
+    const uploadUserAnd = scope.params.length ? `AND sp.user_id = $2` : '';
+    const dailyUserAnd = scope.params.length ? `AND dl.user_id = $2` : '';
+    const p = scope.params;
+
+    const liveRows = await db.all(
+      `SELECT
         lsf.identity_id,
         COALESCE(p.name, NULL) as name,
         SUM(lsf.appearance_count) as total_appearances
       FROM live_stream_faces lsf
       JOIN live_stream_sessions lss ON lss.id = lsf.session_id
       LEFT JOIN persons p ON p.identity_id = lsf.identity_id
-      WHERE DATE(lss.started_at) = ?
-      GROUP BY lsf.identity_id, p.name
-    `, [date]);
+      WHERE DATE(lss.started_at) = $1 ${userAnd}
+      GROUP BY lsf.identity_id, p.name`,
+      [''+date, ...p]
+    );
 
-    // Also pull from session_people for image/video uploads on this date
-    const uploadRows = await db.all(`
-      SELECT
+    const uploadRows = await db.all(
+      `SELECT
         sp.identity_id,
         COALESCE(p.name, NULL) as name,
         COUNT(*) as total_appearances
       FROM session_people sp
       JOIN sessions s ON s.id = sp.session_id
       LEFT JOIN persons p ON p.identity_id = sp.identity_id
-      WHERE sp.identity_id IS NOT NULL
-        AND DATE(s.processed_at) = ?
-      GROUP BY sp.identity_id, p.name
-    `, [date]);
+      WHERE sp.identity_id IS NOT NULL AND DATE(s.processed_at) = $1 ${uploadUserAnd}
+      GROUP BY sp.identity_id, p.name`,
+      [''+date, ...p]
+    );
 
-    // Also try daily_logs table (populated by new detections)
-    const dailyRows = await db.all(`
-      SELECT person_id as identity_id, name, entry_count as total_appearances
+    const dailyRows = await db.all(
+      `SELECT person_id as identity_id, name, entry_count as total_appearances
       FROM daily_logs
-      WHERE date = ?
-    `, [date]);
+      WHERE date = $1 ${dailyUserAnd}`,
+      [''+date, ...p]
+    );
 
     // Merge all three sources by identity_id
     const map = new Map();
@@ -384,12 +457,17 @@ router.get("/daily-summary", async (req, res) => {
 });
 
 // ── Route: Daily Logs — person cards + table ───────────────────
-router.get("/daily-logs", async (req, res) => {
+router.get('/daily-logs', authMiddleware, async (req, res) => {
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   try {
-    // Live stream detections
-    const liveRows = await db.all(`
-      SELECT
+    const scope = userScope(req, 2);
+    const userAnd = scope.params.length ? `AND lsf.user_id = $2` : '';
+    const uploadAnd = scope.params.length ? `AND sp.user_id = $2` : '';
+    const dailyAnd = scope.params.length ? `AND dl.user_id = $2` : '';
+    const p = scope.params;
+
+    const liveRows = await db.all(
+      `SELECT
         lsf.identity_id,
         COALESCE(p.name, NULL) as name,
         i.canonical_face_url,
@@ -400,13 +478,13 @@ router.get("/daily-logs", async (req, res) => {
       JOIN live_stream_sessions lss ON lss.id = lsf.session_id
       LEFT JOIN persons p ON p.identity_id = lsf.identity_id
       LEFT JOIN identities i ON i.id = lsf.identity_id
-      WHERE DATE(lss.started_at) = ?
-      GROUP BY lsf.identity_id, p.name, i.canonical_face_url
-    `, [date]);
+      WHERE DATE(lss.started_at) = $1 ${userAnd}
+      GROUP BY lsf.identity_id, p.name, i.canonical_face_url`,
+      [''+date, ...p]
+    );
 
-    // Upload detections (image/video)
-    const uploadRows = await db.all(`
-      SELECT
+    const uploadRows = await db.all(
+      `SELECT
         sp.identity_id,
         COALESCE(p.name, NULL) as name,
         i.canonical_face_url,
@@ -417,20 +495,20 @@ router.get("/daily-logs", async (req, res) => {
       JOIN sessions s ON s.id = sp.session_id
       LEFT JOIN persons p ON p.identity_id = sp.identity_id
       LEFT JOIN identities i ON i.id = sp.identity_id
-      WHERE sp.identity_id IS NOT NULL
-        AND DATE(s.processed_at) = ?
-      GROUP BY sp.identity_id, p.name, i.canonical_face_url
-    `, [date]);
+      WHERE sp.identity_id IS NOT NULL AND DATE(s.processed_at) = $1 ${uploadAnd}
+      GROUP BY sp.identity_id, p.name, i.canonical_face_url`,
+      [''+date, ...p]
+    );
 
-    // daily_logs (new detections written by Python service)
-    const dailyRows = await db.all(`
-      SELECT dl.person_id as identity_id, dl.name,
+    const dailyRows = await db.all(
+      `SELECT dl.person_id as identity_id, dl.name,
              i.canonical_face_url,
              dl.first_seen, dl.last_seen, dl.entry_count
       FROM daily_logs dl
       LEFT JOIN identities i ON i.id = dl.person_id
-      WHERE dl.date = ?
-    `, [date]);
+      WHERE dl.date = $1 ${dailyAnd}`,
+      [''+date, ...p]
+    );
 
     // Merge by identity_id, picking best values
     const map = new Map();
@@ -492,40 +570,43 @@ router.get("/daily-logs", async (req, res) => {
 });
 
 // ── Route: Hourly Stats ────────────────────────────────────────
-router.get("/hourly-stats", async (req, res) => {
+router.get('/hourly-stats', authMiddleware, async (req, res) => {
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   try {
-    // Live stream — count per hour based on session start
-    const liveHours = await db.all(`
-      SELECT
-        EXTRACT(HOUR FROM lss.started_at)::int AS hour,
+    const scope = userScope(req, 2);
+    const userAnd = scope.params.length ? `AND lsf.user_id = $2` : '';
+    const uploadAnd = scope.params.length ? `AND sp.user_id = $2` : '';
+    const dailyAnd = scope.params.length ? `AND dl.user_id = $2` : '';
+    const p = scope.params;
+
+    const liveHours = await db.all(
+      `SELECT EXTRACT(HOUR FROM lss.started_at)::int AS hour,
         COALESCE(SUM(lsf.appearance_count), 0) AS detections
       FROM live_stream_faces lsf
       JOIN live_stream_sessions lss ON lss.id = lsf.session_id
-      WHERE DATE(lss.started_at) = ?
-      GROUP BY EXTRACT(HOUR FROM lss.started_at)
-    `, [date]);
+      WHERE DATE(lss.started_at) = $1 ${userAnd}
+      GROUP BY EXTRACT(HOUR FROM lss.started_at)`,
+      [''+date, ...p]
+    );
 
-    // Upload sessions — count faces per hour
-    const uploadHours = await db.all(`
-      SELECT
-        EXTRACT(HOUR FROM s.processed_at)::int AS hour,
+    const uploadHours = await db.all(
+      `SELECT EXTRACT(HOUR FROM s.processed_at)::int AS hour,
         COUNT(sp.id) AS detections
       FROM session_people sp
       JOIN sessions s ON s.id = sp.session_id
-      WHERE sp.identity_id IS NOT NULL AND DATE(s.processed_at) = ?
-      GROUP BY EXTRACT(HOUR FROM s.processed_at)
-    `, [date]);
+      WHERE sp.identity_id IS NOT NULL AND DATE(s.processed_at) = $1 ${uploadAnd}
+      GROUP BY EXTRACT(HOUR FROM s.processed_at)`,
+      [''+date, ...p]
+    );
 
-    // daily_logs hourly (if available) — first_seen as 'HH:MM'
-    const dailyHours = await db.all(`
-      SELECT
-        CAST(SPLIT_PART(first_seen::text, ':', 1) AS INTEGER) AS hour,
+    const dailyHours = await db.all(
+      `SELECT CAST(SPLIT_PART(first_seen::text, ':', 1) AS INTEGER) AS hour,
         SUM(entry_count) AS detections
-      FROM daily_logs
-      WHERE date = ?
-      GROUP BY SPLIT_PART(first_seen::text, ':', 1)
-    `, [date]);
+      FROM daily_logs dl
+      WHERE date = $1 ${dailyAnd}
+      GROUP BY SPLIT_PART(first_seen::text, ':', 1)`,
+      [''+date, ...p]
+    );
 
     // Build 24-slot array
     const hourMap = new Array(24).fill(0);
@@ -547,47 +628,47 @@ router.get("/hourly-stats", async (req, res) => {
 });
 
 // ── Route: 7-Day Visitor Trend ─────────────────────────────────
-router.get("/daily-trend", async (req, res) => {
+router.get('/daily-trend', authMiddleware, async (req, res) => {
   const days = toInt(req.query.days) || 7;
   try {
-    // Live stream sessions trend
-    const liveTrend = await db.all(`
-      SELECT
-        DATE(lss.started_at) as date,
+    const scope = userScope(req, 1);
+    const userAnd = scope.params.length ? `AND lsf.user_id = $1` : '';
+    const uploadAnd = scope.params.length ? `AND sp.user_id = $1` : '';
+    const dailyAnd = scope.params.length ? `AND dl.user_id = $1` : '';
+    const p = scope.params;
+
+    const liveTrend = await db.all(
+      `SELECT DATE(lss.started_at) as date,
         COUNT(DISTINCT lsf.identity_id) as unique_people,
         COALESCE(SUM(lsf.appearance_count), 0) as total_entries
       FROM live_stream_sessions lss
       LEFT JOIN live_stream_faces lsf ON lsf.session_id = lss.id
-      WHERE lss.started_at >= NOW() - INTERVAL '${days} days'
-      GROUP BY DATE(lss.started_at)
-      ORDER BY date ASC
-    `);
+      WHERE lss.started_at >= NOW() - INTERVAL '${days} days' ${userAnd}
+      GROUP BY DATE(lss.started_at) ORDER BY date ASC`,
+      p
+    );
 
-    // Upload sessions trend
-    const uploadTrend = await db.all(`
-      SELECT
-        DATE(s.processed_at) as date,
+    const uploadTrend = await db.all(
+      `SELECT DATE(s.processed_at) as date,
         COUNT(DISTINCT sp.identity_id) as unique_people,
         COUNT(sp.id) as total_entries
       FROM sessions s
       LEFT JOIN session_people sp ON sp.session_id = s.id
       WHERE s.processed_at >= NOW() - INTERVAL '${days} days'
-        AND sp.identity_id IS NOT NULL
-      GROUP BY DATE(s.processed_at)
-      ORDER BY date ASC
-    `);
+        AND sp.identity_id IS NOT NULL ${uploadAnd}
+      GROUP BY DATE(s.processed_at) ORDER BY date ASC`,
+      p
+    );
 
-    // daily_logs trend
-    const dailyTrend = await db.all(`
-      SELECT
-        date,
+    const dailyTrend = await db.all(
+      `SELECT date,
         COUNT(DISTINCT person_id) as unique_people,
         SUM(entry_count) as total_entries
-      FROM daily_logs
-      WHERE date >= CURRENT_DATE - INTERVAL '${days} days'
-      GROUP BY date
-      ORDER BY date ASC
-    `);
+      FROM daily_logs dl
+      WHERE date >= CURRENT_DATE - INTERVAL '${days} days' ${dailyAnd}
+      GROUP BY date ORDER BY date ASC`,
+      p
+    );
 
     // Merge all three by date
     const map = new Map();
@@ -617,55 +698,58 @@ router.get("/daily-trend", async (req, res) => {
 });
 
 // ── Route: Top People (last N days) ───────────────────────────
-router.get("/top-people", async (req, res) => {
+router.get('/top-people', authMiddleware, async (req, res) => {
   const days = toInt(req.query.days) || 7;
   try {
-    // From live sessions
-    const liveTop = await db.all(`
-      SELECT
-        lsf.identity_id as person_id,
-        COALESCE(p.name, NULL) as name,
+    const scope = userScope(req, 1);
+    const userAnd = scope.params.length ? `AND lsf.user_id = $1` : '';
+    const uploadAnd = scope.params.length ? `AND sp.user_id = $1` : '';
+    const dailyAnd = scope.params.length ? `AND dl.user_id = $1` : '';
+    const p = scope.params;
+
+    const liveTop = await db.all(
+      `SELECT lsf.identity_id as person_id,
+        COALESCE(p2.name, NULL) as name,
         i.canonical_face_url,
         SUM(lsf.appearance_count) as total,
         MAX(lss.started_at) as last_seen
       FROM live_stream_faces lsf
       JOIN live_stream_sessions lss ON lss.id = lsf.session_id
-      LEFT JOIN persons p ON p.identity_id = lsf.identity_id
+      LEFT JOIN persons p2 ON p2.identity_id = lsf.identity_id
       LEFT JOIN identities i ON i.id = lsf.identity_id
-      WHERE lss.started_at >= NOW() - INTERVAL '${days} days'
-      GROUP BY lsf.identity_id, p.name, i.canonical_face_url
-    `);
+      WHERE lss.started_at >= NOW() - INTERVAL '${days} days' ${userAnd}
+      GROUP BY lsf.identity_id, p2.name, i.canonical_face_url`,
+      p
+    );
 
-    // From upload sessions
-    const uploadTop = await db.all(`
-      SELECT
-        sp.identity_id as person_id,
-        COALESCE(p.name, NULL) as name,
+    const uploadTop = await db.all(
+      `SELECT sp.identity_id as person_id,
+        COALESCE(p2.name, NULL) as name,
         i.canonical_face_url,
         COUNT(*) as total,
         MAX(s.processed_at) as last_seen
       FROM session_people sp
       JOIN sessions s ON s.id = sp.session_id
-      LEFT JOIN persons p ON p.identity_id = sp.identity_id
+      LEFT JOIN persons p2 ON p2.identity_id = sp.identity_id
       LEFT JOIN identities i ON i.id = sp.identity_id
       WHERE sp.identity_id IS NOT NULL
-        AND s.processed_at >= NOW() - INTERVAL '${days} days'
-      GROUP BY sp.identity_id, p.name, i.canonical_face_url
-    `);
+        AND s.processed_at >= NOW() - INTERVAL '${days} days' ${uploadAnd}
+      GROUP BY sp.identity_id, p2.name, i.canonical_face_url`,
+      p
+    );
 
-    // From daily_logs
-    const dailyTop = await db.all(`
-      SELECT
-        dl.person_id,
+    const dailyTop = await db.all(
+      `SELECT dl.person_id,
         dl.name,
         i.canonical_face_url,
         SUM(dl.entry_count) as total,
         MAX(dl.date) as last_seen
       FROM daily_logs dl
       LEFT JOIN identities i ON i.id = dl.person_id
-      WHERE dl.date >= CURRENT_DATE - INTERVAL '${days} days'
-      GROUP BY dl.person_id, dl.name, i.canonical_face_url
-    `);
+      WHERE dl.date >= CURRENT_DATE - INTERVAL '${days} days' ${dailyAnd}
+      GROUP BY dl.person_id, dl.name, i.canonical_face_url`,
+      p
+    );
 
     const S3B = process.env.S3_BUCKET_NAME;
     const S3R = process.env.AWS_REGION;
@@ -719,23 +803,24 @@ router.get("/top-people", async (req, res) => {
 });
 
 // ── Route: Available Dates ─────────────────────────────────────
-router.get("/available-dates", async (req, res) => {
+router.get('/available-dates', authMiddleware, async (req, res) => {
   try {
-    const liveDates = await db.all(`
-      SELECT DISTINCT DATE(started_at)::text as date
-      FROM live_stream_sessions
-      WHERE started_at IS NOT NULL
-      ORDER BY date DESC LIMIT 30
-    `);
-    const uploadDates = await db.all(`
-      SELECT DISTINCT DATE(processed_at)::text as date
-      FROM sessions
-      WHERE processed_at IS NOT NULL
-      ORDER BY date DESC LIMIT 30
-    `);
-    const dailyDates = await db.all(`
-      SELECT DISTINCT date::text FROM daily_logs ORDER BY date DESC LIMIT 30
-    `);
+    const scope = userScope(req);
+    const where = scope.clause;
+    const p = scope.params;
+
+    const liveDates = await db.all(
+      `SELECT DISTINCT DATE(started_at)::text as date FROM live_stream_sessions ${where} ORDER BY date DESC LIMIT 30`,
+      p
+    );
+    const uploadDates = await db.all(
+      `SELECT DISTINCT DATE(processed_at)::text as date FROM sessions ${where} ORDER BY date DESC LIMIT 30`,
+      p
+    );
+    const dailyDates = await db.all(
+      `SELECT DISTINCT date::text FROM daily_logs ${where} ORDER BY date DESC LIMIT 30`,
+      p
+    );
 
     const allDates = new Set([
       ...liveDates.map(r => r.date),
@@ -746,13 +831,13 @@ router.get("/available-dates", async (req, res) => {
     const dates = [...allDates].sort((a, b) => b.localeCompare(a)).slice(0, 30);
     res.json({ dates });
   } catch (err) {
-    console.error("[Analytics] available-dates error:", err.message);
+    console.error('[Analytics] available-dates error:', err.message);
     res.status(503).json({ dates: [] });
   }
 });
 
-// ── Route: Rebuild Analytics (backfill daily_logs from PostgreSQL) ─
-router.post("/rebuild", async (req, res) => {
+// ── Route: Rebuild Analytics ────────────────────────────────────
+router.post('/rebuild', authMiddleware, async (req, res) => {
   try {
     console.log("[Analytics] Rebuilding daily_logs from PostgreSQL...");
 

@@ -1,13 +1,14 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const db = require("./db-postgres");
-const notificationService = require("./services/notificationService");
-const emailService = require("./services/emailService");
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const db = require('./db-postgres');
+const notificationService = require('./services/notificationService');
+const emailService = require('./services/emailService');
+const { authMiddleware } = require('./middleware/auth');
 
 // ── App Setup ─────────────────────────────────────────────
 const app = express();
@@ -92,9 +93,9 @@ const deleteTempFile = (filePath) => {
   }
 };
 
-const uploadToS3 = async (filePath, fileName, mimeType) => {
+const uploadToS3 = async (filePath, fileName, mimeType, userId = 'shared') => {
   const fileStream = fs.createReadStream(filePath);
-  const s3Key = `visionvault/${Date.now()}-${fileName}`;
+  const s3Key = `user_${userId}/${Date.now()}-${fileName}`;
   const command = new PutObjectCommand({
     Bucket: process.env.S3_BUCKET_NAME,
     Key: s3Key,
@@ -182,19 +183,20 @@ app.get("/api/movements", async (req, res) => {
   }
 });
 
-// ── Route: Upload Image ───────────────────────────────────────
-app.post("/api/upload", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, message: "No image file provided." });
+// ── Route: Upload Image (auth required) ─────────────────────────
+app.post('/api/upload', authMiddleware, upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'No image file provided.' });
 
   const filePath = req.file.path;
   const fileName = req.file.filename;
   const mimeType = req.file.mimetype;
+  const userId   = req.user?.id || null;
 
-  console.log(`[Upload] Received image: ${fileName}`);
+  console.log(`[Upload] Received image: ${fileName} | user: ${userId}`);
 
   try {
-    // 1. Upload to S3 (used as fallback or main image URL)
-    const s3Url = await uploadToS3(filePath, fileName, mimeType);
+    // 1. Upload to S3 (user-scoped folder)
+    const s3Url = await uploadToS3(filePath, fileName, mimeType, userId);
 
     // 2. Call YOLO for person counting and face analysis
     const yoloResult = await detectPeopleWithYOLO(filePath);
@@ -207,18 +209,19 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
     const averageConfidence = yoloResult.averageConfidence || 0;
     const imageS3Url = yoloResult.imageS3Url || s3Url;
 
-    // Save session metadata to PostgreSQL
+    // Save session metadata to PostgreSQL (with user_id)
     await db.run(
-      `INSERT INTO sessions (id, filename, type, s3_url, total_frames, people_count, face_count, unique_identities_count, average_confidence) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, filename, type, s3_url, total_frames, people_count, face_count, unique_identities_count, average_confidence, user_id) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
       [
         sessionId,
         req.file.originalname,
-        "image",
+        'image',
         imageS3Url,
         personCount,
         facesDetected,
         uniqueIdentities,
-        averageConfidence
+        averageConfidence,
+        userId
       ]
     );
 
@@ -272,8 +275,8 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
         }
 
         await db.run(
-          `INSERT INTO session_people (session_id, track_id, average_confidence, face_count, best_face_confidence, identity_id, s3_crop_url, frames_appeared, reentries) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)`,
-          [sessionId, trackId, faceConf, faceCount, faceConf, identityId, s3CropUrl]
+          `INSERT INTO session_people (session_id, track_id, average_confidence, face_count, best_face_confidence, identity_id, s3_crop_url, frames_appeared, reentries, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?)`,
+          [sessionId, trackId, faceConf, faceCount, faceConf, identityId, s3CropUrl, userId]
         );
 
         let isNew = true;
@@ -283,8 +286,8 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
           const existingIdentity = await db.get(`SELECT id, total_appearances FROM identities WHERE id = ?`, [identityId]);
           if (!existingIdentity) {
             await db.run(
-              `INSERT INTO identities (id, canonical_face_url, total_appearances) VALUES (?, ?, 1)`,
-              [identityId, s3CropUrl]
+              `INSERT INTO identities (id, canonical_face_url, total_appearances, user_id) VALUES (?, ?, 1, ?)`,
+              [identityId, s3CropUrl, userId]
             );
           } else {
             isNew = false;
@@ -309,8 +312,8 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
 
         // Insert into legacy table detected_faces for backward compatibility
         await db.run(
-          `INSERT INTO detected_faces (id, face_signature, upload_count, s3_url) VALUES (?, ?, ?, ?)`,
-          [legacyId, identityId || "YOLO Detection", uploadCount, s3CropUrl || imageS3Url]
+          `INSERT INTO detected_faces (id, face_signature, upload_count, s3_url, user_id) VALUES (?, ?, ?, ?, ?)`,
+          [legacyId, identityId || 'YOLO Detection', uploadCount, s3CropUrl || imageS3Url, userId]
         );
       }
     } else if (yoloResult.personDetected) {
@@ -364,12 +367,13 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
 // ── Virtual Threshold Line Tracker & Routes (Moved to Service/Controller) ──
 
 
-// ── Route: Upload Video ───────────────────────────────────────
-app.post("/api/upload-video", upload.single("video"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, message: "No video file provided." });
+// ── Route: Upload Video (auth required) ──────────────────────────
+app.post('/api/upload-video', authMiddleware, upload.single('video'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'No video file provided.' });
 
   const filePath = req.file.path;
-  console.log(`[Video Upload] Processing video: ${req.file.filename}`);
+  const userId   = req.user?.id || null;
+  console.log(`[Video Upload] Processing video: ${req.file.filename} | user: ${userId}`);
 
   try {
     // 1. Call YOLO video tracker directly on the .mp4 file
@@ -384,19 +388,20 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
     const uniqueIdentities = yoloResult.uniqueIdentities || 0;
     const videoS3Url = yoloResult.videoS3Url || "";
 
-    // Save session metadata to PostgreSQL
+    // Save session metadata to PostgreSQL (with user_id)
     await db.run(
-      `INSERT INTO sessions (id, filename, type, s3_url, total_frames, people_count, face_count, unique_identities_count, average_confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, filename, type, s3_url, total_frames, people_count, face_count, unique_identities_count, average_confidence, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sessionId,
         req.file.originalname,
-        "video",
+        'video',
         videoS3Url,
         totalFrames,
         personCount,
         facesDetected,
         uniqueIdentities,
-        averageConfidence
+        averageConfidence,
+        userId
       ]
     );
 
@@ -417,8 +422,8 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
         const reentries = p.reentries || 0;
 
         await db.run(
-          `INSERT INTO session_people (session_id, track_id, average_confidence, face_count, best_face_confidence, identity_id, s3_crop_url, frames_appeared, reentries) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [sessionId, trackId, avgConf, faceCount, bestFaceConf, identityId, s3CropUrl, framesAppeared, reentries]
+          `INSERT INTO session_people (session_id, track_id, average_confidence, face_count, best_face_confidence, identity_id, s3_crop_url, frames_appeared, reentries, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [sessionId, trackId, avgConf, faceCount, bestFaceConf, identityId, s3CropUrl, framesAppeared, reentries, userId]
         );
 
         if (identityId) {
@@ -427,8 +432,8 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
           if (!existingIdentity) {
             isNew = true;
             await db.run(
-              `INSERT INTO identities (id, canonical_face_url, total_appearances) VALUES (?, ?, 1)`,
-              [identityId, s3CropUrl]
+              `INSERT INTO identities (id, canonical_face_url, total_appearances, user_id) VALUES (?, ?, 1, ?)`,
+              [identityId, s3CropUrl, userId]
             );
           } else {
             await db.run(
@@ -467,10 +472,10 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
       }
     }
 
-    // Insert legacy video_history record for backward compatibility
+    // Insert legacy video_history record (with user_id)
     await db.run(
-      `INSERT INTO video_history (id, video_filename, frames_analyzed, humans_detected, faces_registered, faces_recognized) VALUES (?, ?, ?, ?, ?, ?)`,
-      [sessionId, req.file.originalname, totalFrames, personCount, facesRegistered.length, facesRecognized.length]
+      `INSERT INTO video_history (id, video_filename, frames_analyzed, humans_detected, faces_registered, faces_recognized, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [sessionId, req.file.originalname, totalFrames, personCount, facesRegistered.length, facesRecognized.length, userId]
     );
 
     notificationService.createNotification(

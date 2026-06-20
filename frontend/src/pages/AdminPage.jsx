@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, ShieldAlert, Trash2, UserCog, Clock, Activity, Search } from 'lucide-react';
-import { apiFetch } from '../utils/api'; // assuming this exists, or we use fetch with auth
 
 export default function AdminPage() {
   const [users, setUsers] = useState([]);

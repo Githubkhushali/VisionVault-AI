@@ -70,7 +70,8 @@ const WebcamDetector = () => {
     // ── Fetch movements leaderboard ───────────────────────────
     const fetchMovements = useCallback(async () => {
         try {
-            const res = await fetch('/api/movements');
+            const token = localStorage.getItem('vv_token') || localStorage.getItem('token');
+            const res = await fetch('/api/movements', { headers: { Authorization: `Bearer ${token}` } });
             const data = await res.json();
             if (data.movements) setMovements(data.movements);
         } catch (err) {
@@ -97,7 +98,12 @@ const WebcamDetector = () => {
         setSystemStatus('Analyzing...');
 
         try {
-            const res = await fetch('/api/stream-frame', { method: 'POST', body: formData });
+            const token = localStorage.getItem('vv_token') || localStorage.getItem('token');
+            const res = await fetch('/api/stream-frame', { 
+                method: 'POST', 
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData 
+            });
             const data = await res.json();
 
             if (data.success) {
@@ -151,9 +157,13 @@ const WebcamDetector = () => {
         const name = (nameInputs[identityId] || '').trim();
         if (!name) return;
         try {
+            const token = localStorage.getItem('vv_token') || localStorage.getItem('token');
             const res = await fetch('/api/register-name', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
                 body: JSON.stringify({ identityId, name }),
             });
             const data = await res.json();
@@ -199,7 +209,15 @@ const WebcamDetector = () => {
     }, [cameraMode]);
 
     const handleStartSession = async () => {
-        try { await fetch('/api/start-stream-analysis', { method: 'POST' }); } catch {}
+        try { 
+            const token = localStorage.getItem('vv_token') || localStorage.getItem('token');
+            await fetch('/api/start-stream-analysis', { 
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            }); 
+        } catch (err) {
+            console.error('[Start session error]', err);
+        }
         setSessionReport(null);
         setCameraMode('SCANNING');
     };
@@ -210,10 +228,12 @@ const WebcamDetector = () => {
         setCameraMode('IDLE');
         setSystemStatus('⏳ Compiling session...');
         try {
+            const token = localStorage.getItem('vv_token') || localStorage.getItem('token');
+            const authHeaders = { Authorization: `Bearer ${token}` };
             // Fetch both the Node session report AND the AI movements simultaneously
             const [sessionRes, movementsRes] = await Promise.all([
-                fetch('/api/stop-stream-analysis', { method: 'POST' }),
-                fetch('/api/movements'),
+                fetch('/api/stop-stream-analysis', { method: 'POST', headers: authHeaders }),
+                fetch('/api/movements', { headers: authHeaders }),
             ]);
             const sessionData = await sessionRes.json();
             const movementsData = await movementsRes.json();
